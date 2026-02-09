@@ -1,0 +1,318 @@
+Employee_ID,Exit_Date,Exit_Reason,Exit_Type,Agency,Job_Grade,Employment_Type
+EMP00014,2023-02-27,Position eliminated,Involuntary,Legal,Junior,Full-time
+EMP00022,,Career change,Voluntary,HR,Mid,Full-time
+EMP00024,2023-10-08,End of contract,Involuntary,Finance,Senior,Full-time
+EMP00026,2023-05-19,Education,Voluntary,Operations,Director,Full-time
+EMP00041,2023-04-13,Work-life balance,Voluntary,Customer Service,Junior,Full-time
+EMP00044,2022-08-12,Performance,Involuntary,IT,Mid,Contract
+EMP00046,2022-05-28,Position eliminated,Involuntary,Marketing,Junior,Part-time
+EMP00047,2023-05-03,Relocation,Voluntary,Marketing,Mid,Contract
+EMP00059,2024-03-22,Relocation,Voluntary,Legal,Director,Part-time
+EMP00067,2023-03-28,Better opportunity,Voluntary,Operations,Mid,Full-time
+EMP00072,2022-09-05,Better opportunity,Voluntary,Legal,Senior,Contract
+EMP00077,2023-08-18,Work-life balance,Voluntary,Operations,Mid,Contract
+EMP00096,2023-03-23,Relocation,Voluntary,IT,Senior,Part-time
+EMP00100,2023-05-07,Personal reasons,Voluntary,Marketing,Junior,Full-time
+EMP00125,2023-02-09,Performance,Involuntary,Finance,Senior,Part-time
+EMP00145,2023-09-20,End of contract,Involuntary,HR,Mid,Part-time
+EMP00151,2022-10-04,End of contract,Involuntary,Legal,Junior,Part-time
+EMP00154,2023-06-01,Performance,Involuntary,Operations,Mid,Full-time
+EMP00160,2022-11-27,Career change,Voluntary,HR,Senior,Contract
+EMP00161,2022-01-24,Conduct violation,Involuntary,Marketing,Mid,Full-time
+EMP00176,2022-03-29,Career change,Voluntary,Legal,Manager,Part-time
+EMP00186,2023-12-26,Career change,Voluntary,Sales,Junior,Full-time
+EMP00193,2023-04-01,Relocation,Voluntary,Operations,Senior,Full-time
+EMP00200,2023-12-22,Education,Voluntary,IT,Mid,Contract
+EMP00203,2021-10-08,Education,Voluntary,Operations,Mid,Part-time
+EMP00204,2023-09-13,Personal reasons,Voluntary,Finance,Senior,Full-time
+EMP00234,2023-06-17,Compensation,Voluntary,Legal,Mid,Full-time
+EMP00243,2023-04-21,Education,Voluntary,Sales,Lead,Full-time
+EMP00247,2023-11-14,Better opportunity,Voluntary,Finance,Senior,Contract
+EMP00248,2022-09-16,Education,Voluntary,HR,Junior,Part-time
+EMP00257,2022-03-28,Career change,Voluntary,Legal,Junior,Full-time
+EMP00260,2024-01-03,Performance,Involuntary,HR,Lead,Full-time
+EMP00268,2023-07-05,Restructuring,Involuntary,Marketing,Senior,Full-time
+EMP00274,2022-12-16,Compensation,Voluntary,IT,Junior,Contract
+EMP00279,2023-08-13,Position eliminated,Involuntary,Legal,Junior,Full-time
+EMP00281,2024-03-12,Relocation,Voluntary,Legal,Mid,Part-time
+EMP00286,2022-06-23,Personal reasons,Voluntary,Finance,Senior,Full-time
+EMP00294,2023-07-18,Compensation,Voluntary,Legal,Lead,Part-time
+EMP00301,2024-09-11,Conduct violation,Involuntary,Sales,Lead,Full-time
+EMP00309,2023-10-24,Personal reasons,Voluntary,Legal,Lead,Full-time
+EMP00312,2022-09-19,Education,Voluntary,IT,Senior,Full-time
+EMP00317,2022-08-18,Better opportunity,Voluntary,Legal,Mid,Temporary
+EMP00319,2022-10-03,Relocation,Voluntary,Sales,Lead,Full-time
+EMP00324,2023-10-24,Personal reasons,Voluntary,Customer Service,Junior,Full-time
+EMP00344,2023-10-18,Better opportunity,Voluntary,Finance,Junior,Full-time
+EMP00348,2024-06-07,Work-life balance,Voluntary,IT,Junior,Contract
+EMP00365,2024-05-08,Work-life balance,Voluntary,Legal,Mid,Contract
+EMP00370,2023-05-17,Restructuring,Involuntary,Marketing,Junior,Contract
+EMP00372,2021-07-11,Education,Voluntary,Operations,Senior,Full-time
+EMP00375,2024-01-14,End of contract,Involuntary,Sales,Junior,Contract
+EMP00379,2023-06-09,Performance,Involuntary,Legal,Junior,Full-time
+EMP00388,2022-07-09,End of contract,Involuntary,Marketing,Mid,Contract
+EMP00389,2023-01-14,Work-life balance,Voluntary,Sales,Manager,Full-time
+EMP00392,2022-03-17,Work-life balance,Voluntary,Customer Service,Senior,Contract
+EMP00404,2023-11-17,Relocation,Voluntary,Finance,Junior,Full-time
+EMP00412,2023-01-04,Relocation,Voluntary,Sales,Junior,Full-time
+EMP00417,2022-05-16,Work-life balance,Voluntary,Sales,Mid,Full-time
+EMP00435,2023-05-20,Career change,Voluntary,Operations,Junior,Full-time
+EMP00438,2023-04-03,Education,Voluntary,IT,Mid,Full-time
+EMP00440,2022-12-15,Restructuring,Involuntary,Operations,Lead,Part-time
+EMP00441,2022-10-20,End of contract,Involuntary,IT,Mid,Full-time
+EMP00447,2023-05-31,Career change,Voluntary,Marketing,Lead,Part-time
+EMP00454,2024-10-05,Relocation,Voluntary,HR,Senior,Full-time
+EMP00457,2022-12-27,Better opportunity,Voluntary,HR,Junior,Full-time
+EMP00461,2021-09-04,Work-life balance,Voluntary,IT,Junior,Temporary
+EMP00465,2023-09-08,Education,Voluntary,HR,Mid,Part-time
+EMP00466,2023-11-23,Performance,Involuntary,Operations,Junior,Part-time
+EMP00487,2023-07-26,Relocation,Voluntary,Operations,Junior,Full-time
+EMP00493,2022-09-10,Work-life balance,Voluntary,Finance,Senior,Full-time
+EMP00501,2023-02-17,Restructuring,Involuntary,HR,Senior,Contract
+EMP00502,2021-10-08,Education,Voluntary,Sales,Lead,Full-time
+EMP00505,2024-08-01,End of contract,Involuntary,Operations,Junior,Full-time
+EMP00512,2023-07-26,Compensation,Voluntary,IT,Senior,Full-time
+EMP00524,2021-12-05,Work-life balance,Voluntary,IT,Lead,Full-time
+EMP00526,2022-12-07,Position eliminated,Involuntary,Finance,Manager,Contract
+EMP00532,2022-11-29,Education,Voluntary,Legal,Mid,Full-time
+EMP00543,2023-01-24,Relocation,Voluntary,Sales,Lead,Full-time
+EMP00548,2022-10-27,Restructuring,Involuntary,HR,Lead,Part-time
+EMP00558,2022-08-12,Position eliminated,Involuntary,HR,Manager,Full-time
+EMP00562,2022-08-06,Education,Voluntary,Operations,Mid,Contract
+EMP00568,2022-08-17,Compensation,Voluntary,Customer Service,Lead,Full-time
+EMP00569,2024-07-31,Personal reasons,Voluntary,Marketing,Junior,Full-time
+EMP00578,2022-03-08,Personal reasons,Voluntary,Sales,Manager,Contract
+EMP00582,2023-07-11,Career change,Voluntary,Legal,Junior,Full-time
+EMP00590,2023-12-29,Personal reasons,Voluntary,HR,Lead,Full-time
+EMP00598,2022-07-10,Relocation,Voluntary,HR,Senior,Full-time
+EMP00609,2022-03-03,Career change,Voluntary,Marketing,Junior,Full-time
+EMP00612,2023-03-31,Better opportunity,Voluntary,Marketing,Mid,Full-time
+EMP00622,,Education,Voluntary,Sales,Mid,Full-time
+EMP00626,2023-02-08,Career change,Voluntary,HR,Junior,Full-time
+EMP00628,2023-05-28,Personal reasons,Voluntary,Finance,Senior,Full-time
+EMP00629,2022-02-27,Education,Voluntary,Legal,Mid,Full-time
+EMP00634,2023-07-01,Relocation,Voluntary,HR,Junior,Full-time
+EMP00636,2023-12-03,Conduct violation,Involuntary,Customer Service,Junior,Full-time
+EMP00637,2022-07-17,Performance,Involuntary,Marketing,Senior,Full-time
+EMP00641,2022-08-08,Performance,Involuntary,Sales,Lead,Full-time
+EMP00645,2022-06-14,Better opportunity,Voluntary,Legal,Lead,Full-time
+EMP00649,2023-10-06,Position eliminated,Involuntary,Operations,Mid,Part-time
+EMP00659,2023-07-20,Career change,Voluntary,IT,Junior,Full-time
+EMP00667,2023-06-30,Performance,Involuntary,Sales,Mid,Full-time
+EMP00670,2023-06-30,Career change,Voluntary,Sales,Senior,Contract
+EMP00672,2024-05-27,Education,Voluntary,HR,Mid,Full-time
+EMP00674,2024-06-07,Performance,Involuntary,Marketing,Manager,Full-time
+EMP00677,2023-08-03,Personal reasons,Voluntary,IT,Lead,Full-time
+EMP00678,2024-07-09,Compensation,Voluntary,IT,Senior,Full-time
+EMP00679,2024-08-22,Career change,Voluntary,Marketing,Senior,Full-time
+EMP00680,2023-06-08,Relocation,Voluntary,Sales,Manager,Full-time
+EMP00681,2023-08-15,Work-life balance,Voluntary,Customer Service,Lead,Contract
+EMP00689,2022-09-09,Career change,Voluntary,Sales,Junior,Full-time
+EMP00691,2024-02-23,Compensation,Voluntary,Finance,Junior,Full-time
+EMP00693,2021-08-29,Restructuring,Involuntary,Legal,Junior,Part-time
+EMP00705,2022-08-25,Personal reasons,Voluntary,HR,Senior,Part-time
+EMP00716,2024-01-26,Better opportunity,Voluntary,Legal,Junior,Full-time
+EMP00717,2023-03-25,Performance,Involuntary,Customer Service,Mid,Part-time
+EMP00719,2022-10-09,Education,Voluntary,Marketing,Senior,Full-time
+EMP00727,2022-08-11,Restructuring,Involuntary,Sales,Junior,Full-time
+EMP00739,2023-04-17,Compensation,Voluntary,Finance,Manager,Part-time
+EMP00742,2024-05-22,Career change,Voluntary,Marketing,Junior,Full-time
+EMP00750,2022-04-28,Relocation,Voluntary,Marketing,Senior,Full-time
+EMP00755,2023-06-09,Education,Voluntary,Customer Service,Junior,Full-time
+EMP00765,2023-02-16,Education,Voluntary,Legal,Senior,Full-time
+EMP00772,2021-08-27,Personal reasons,Voluntary,Customer Service,Junior,Full-time
+EMP00777,2023-07-08,Better opportunity,Voluntary,IT,Senior,Contract
+EMP00782,2023-07-31,Education,Voluntary,HR,Junior,Part-time
+EMP00783,2022-09-14,Restructuring,Involuntary,Sales,Mid,Full-time
+EMP00784,2023-04-11,Position eliminated,Involuntary,Customer Service,Mid,Full-time
+EMP00789,2021-10-27,Position eliminated,Involuntary,Marketing,Lead,Full-time
+EMP00797,2022-10-30,Education,Voluntary,Legal,Senior,Full-time
+EMP00808,2023-01-24,Compensation,Voluntary,Marketing,Mid,Full-time
+EMP00809,2023-03-04,Compensation,Voluntary,Customer Service,Senior,Full-time
+EMP00815,2022-12-09,End of contract,Involuntary,Legal,Lead,Full-time
+EMP00816,2023-01-14,Conduct violation,Involuntary,Marketing,Junior,Part-time
+EMP00817,2023-01-11,Work-life balance,Voluntary,HR,Junior,Full-time
+EMP00818,2023-03-02,Conduct violation,Involuntary,Customer Service,Junior,Full-time
+EMP00825,2023-02-02,Work-life balance,Voluntary,Customer Service,Senior,Full-time
+EMP00842,2021-09-08,Relocation,Voluntary,Finance,Lead,Full-time
+EMP00852,2022-09-15,Personal reasons,Voluntary,Sales,Senior,Full-time
+EMP00859,2023-01-22,Personal reasons,Voluntary,HR,Junior,Full-time
+EMP00862,2024-02-19,Education,Voluntary,Operations,Senior,Full-time
+EMP00874,2022-11-30,Career change,Voluntary,Sales,Senior,Full-time
+EMP00880,2022-04-29,End of contract,Involuntary,Finance,Mid,Contract
+EMP00900,2023-04-27,Compensation,Voluntary,Customer Service,Senior,Full-time
+EMP00903,2023-11-25,Personal reasons,Voluntary,Customer Service,Senior,Contract
+EMP00913,2024-10-04,Personal reasons,Voluntary,Sales,Junior,Part-time
+EMP00915,2024-05-27,Work-life balance,Voluntary,HR,Junior,Full-time
+EMP00918,2023-08-20,Work-life balance,Voluntary,Customer Service,Mid,Full-time
+EMP00921,2023-05-04,Work-life balance,Voluntary,Finance,Senior,Full-time
+EMP00922,2024-01-18,Education,Voluntary,Marketing,Mid,Full-time
+EMP00934,2024-01-17,Compensation,Voluntary,IT,Senior,Full-time
+EMP00942,2022-03-21,Education,Voluntary,Legal,Junior,Full-time
+EMP00944,2023-03-24,Work-life balance,Voluntary,IT,Mid,Full-time
+EMP00947,2023-02-16,Relocation,Voluntary,HR,Lead,Full-time
+EMP00959,2024-10-28,Personal reasons,Voluntary,Operations,Director,Part-time
+EMP00961,2024-01-13,Relocation,Voluntary,Customer Service,Junior,Full-time
+EMP00962,2023-11-10,Compensation,Voluntary,Legal,Junior,Contract
+EMP00968,2023-08-17,Personal reasons,Voluntary,Legal,Lead,Full-time
+EMP00979,2024-02-03,Performance,Involuntary,Legal,Senior,Part-time
+EMP00992,2023-10-16,Career change,Voluntary,Marketing,Junior,Full-time
+EMP01004,2023-08-04,Work-life balance,Voluntary,Finance,Junior,Full-time
+EMP01013,2024-04-17,Education,Voluntary,Operations,Senior,Contract
+EMP01014,2023-06-24,Education,Voluntary,Sales,Junior,Part-time
+EMP01021,2022-12-10,Personal reasons,Voluntary,Customer Service,Mid,Full-time
+EMP01023,,Personal reasons,Voluntary,Sales,Mid,Full-time
+EMP01035,2022-02-13,Career change,Voluntary,Customer Service,Senior,Part-time
+EMP01037,2022-05-21,Personal reasons,Voluntary,Legal,Mid,Part-time
+EMP01038,2023-03-24,Work-life balance,Voluntary,Operations,Director,Full-time
+EMP01049,2024-04-03,Work-life balance,Voluntary,Customer Service,Junior,Full-time
+EMP01059,2022-11-20,Compensation,Voluntary,Sales,Junior,Full-time
+EMP01070,2023-10-03,Personal reasons,Voluntary,HR,Lead,Full-time
+EMP01079,2022-12-27,Career change,Voluntary,Operations,Mid,Full-time
+EMP01082,2021-07-24,Better opportunity,Voluntary,Operations,Junior,Full-time
+EMP01083,2022-11-28,Compensation,Voluntary,Finance,Junior,Temporary
+EMP01084,2023-10-19,Education,Voluntary,Sales,Mid,Part-time
+EMP01092,2022-07-10,Position eliminated,Involuntary,Marketing,Mid,Full-time
+EMP01097,2023-11-24,Relocation,Voluntary,Customer Service,Mid,Full-time
+EMP01102,2022-08-22,Career change,Voluntary,Sales,Mid,Part-time
+EMP01107,,Personal reasons,Voluntary,Sales,Junior,Temporary
+EMP01111,2021-07-18,Better opportunity,Voluntary,HR,Junior,Temporary
+EMP01115,2023-10-27,Performance,Involuntary,Operations,Mid,Part-time
+EMP01116,2023-01-14,Conduct violation,Involuntary,Finance,Junior,Full-time
+EMP01129,2021-11-25,Conduct violation,Involuntary,Customer Service,Junior,Full-time
+EMP01132,2022-11-13,Education,Voluntary,Sales,Mid,Contract
+EMP01136,2023-11-21,Education,Voluntary,HR,Mid,Temporary
+EMP01158,2021-11-10,Education,Voluntary,Customer Service,Senior,Full-time
+EMP01162,2023-08-11,Career change,Voluntary,Sales,Mid,Full-time
+EMP01166,2023-01-03,Work-life balance,Voluntary,Marketing,Junior,Full-time
+EMP01183,,Performance,Involuntary,HR,Senior,Full-time
+EMP01187,2023-11-16,Career change,Voluntary,Marketing,Mid,Full-time
+EMP01189,2024-03-07,End of contract,Involuntary,IT,Junior,Full-time
+EMP01192,2023-02-16,Personal reasons,Voluntary,Marketing,Junior,Temporary
+EMP01195,2023-08-24,Personal reasons,Voluntary,Customer Service,Mid,Contract
+EMP01202,2023-01-04,Better opportunity,Voluntary,Customer Service,Lead,Full-time
+EMP01205,2021-09-04,Compensation,Voluntary,Marketing,Junior,Full-time
+EMP01209,2023-02-05,End of contract,Involuntary,Finance,Mid,Full-time
+EMP01211,2023-07-22,Career change,Voluntary,Customer Service,Junior,Part-time
+EMP01214,2022-04-21,Position eliminated,Involuntary,Legal,Lead,Full-time
+EMP01228,2023-02-21,Performance,Involuntary,Customer Service,Mid,Full-time
+EMP01238,,Personal reasons,Voluntary,IT,Manager,Contract
+EMP01242,2023-05-18,Relocation,Voluntary,Customer Service,Manager,Full-time
+EMP01247,2022-07-29,Personal reasons,Voluntary,Marketing,Lead,Full-time
+EMP01249,2022-10-09,Performance,Involuntary,Customer Service,Senior,Full-time
+EMP01253,2022-05-08,Performance,Involuntary,Sales,Manager,Contract
+EMP01255,2023-12-16,Performance,Involuntary,Operations,Junior,Full-time
+EMP01256,2023-02-16,Relocation,Voluntary,Customer Service,Mid,Part-time
+EMP01264,2022-10-19,Career change,Voluntary,Legal,Lead,Part-time
+EMP01266,,Better opportunity,Voluntary,Customer Service,Junior,Full-time
+EMP01269,2022-01-03,Work-life balance,Voluntary,Customer Service,Mid,Full-time
+EMP01274,2023-06-07,Personal reasons,Voluntary,Operations,Lead,Contract
+EMP01275,2022-05-09,Better opportunity,Voluntary,Finance,Director,Full-time
+EMP01276,2022-02-04,End of contract,Involuntary,HR,Lead,Contract
+EMP01279,2022-03-12,Restructuring,Involuntary,Operations,Senior,Contract
+EMP01293,2023-02-19,Work-life balance,Voluntary,HR,Senior,Full-time
+EMP01318,2024-02-06,Education,Voluntary,Legal,Mid,Contract
+EMP01324,2023-10-28,Better opportunity,Voluntary,Sales,Mid,Full-time
+EMP01328,2023-03-09,Compensation,Voluntary,HR,Junior,Full-time
+EMP01333,2024-06-18,Relocation,Voluntary,Operations,Junior,Full-time
+EMP01335,2023-03-09,Career change,Voluntary,Sales,Mid,Full-time
+EMP01339,2022-11-05,Better opportunity,Voluntary,Marketing,Junior,Part-time
+EMP01347,2023-12-29,Relocation,Voluntary,Customer Service,Senior,Full-time
+EMP01350,2021-08-31,Relocation,Voluntary,Marketing,Senior,Part-time
+EMP01355,2022-12-28,Career change,Voluntary,Operations,Senior,Part-time
+EMP01367,2023-10-31,End of contract,Involuntary,Customer Service,Lead,Full-time
+EMP01374,2023-08-08,Conduct violation,Involuntary,IT,Junior,Full-time
+EMP01376,2024-05-12,Work-life balance,Voluntary,Customer Service,Junior,Full-time
+EMP01381,2022-05-15,Career change,Voluntary,IT,Senior,Full-time
+EMP01385,2023-01-24,Conduct violation,Involuntary,IT,Mid,Part-time
+EMP01392,2022-11-23,Career change,Voluntary,Legal,Manager,Full-time
+EMP01401,2023-07-16,Education,Voluntary,IT,Mid,Contract
+EMP01405,2023-07-25,Performance,Involuntary,Finance,Junior,Full-time
+EMP01412,2022-10-30,End of contract,Involuntary,HR,Lead,Full-time
+EMP01413,2023-08-18,Work-life balance,Voluntary,IT,Mid,Part-time
+EMP01415,2024-12-02,Performance,Involuntary,Legal,Junior,Full-time
+EMP01418,2024-08-13,Work-life balance,Voluntary,Marketing,Mid,Full-time
+EMP01421,2022-11-12,Work-life balance,Voluntary,Operations,Mid,Temporary
+EMP01436,2022-08-03,Better opportunity,Voluntary,Customer Service,Mid,Part-time
+EMP01438,2022-08-02,Better opportunity,Voluntary,IT,Mid,Full-time
+EMP01440,2021-08-29,Relocation,Voluntary,Marketing,Junior,Contract
+EMP01445,2022-07-04,Better opportunity,Voluntary,IT,Mid,Full-time
+EMP01446,2023-09-09,Better opportunity,Voluntary,Operations,Mid,Full-time
+EMP01447,2022-05-31,Compensation,Voluntary,Legal,Lead,Contract
+EMP01461,2023-04-01,Education,Voluntary,IT,Senior,Full-time
+EMP01465,2022-04-17,Better opportunity,Voluntary,Sales,Junior,Full-time
+EMP01475,2023-06-11,Compensation,Voluntary,HR,Junior,Full-time
+EMP01493,2021-11-08,Performance,Involuntary,Customer Service,Senior,Full-time
+EMP01500,2023-04-23,Work-life balance,Voluntary,Sales,Director,Part-time
+EMP01503,2022-10-05,Relocation,Voluntary,Marketing,Manager,Part-time
+EMP01514,2022-12-18,Better opportunity,Voluntary,Customer Service,Junior,Full-time
+EMP01524,2024-04-14,Education,Voluntary,Customer Service,Senior,Full-time
+EMP01527,2022-03-18,Compensation,Voluntary,HR,Director,Full-time
+EMP01538,2024-02-15,Conduct violation,Involuntary,Legal,Junior,Full-time
+EMP01544,2024-02-08,Education,Voluntary,Operations,Lead,Full-time
+EMP01556,2024-03-19,Education,Voluntary,HR,Mid,Full-time
+EMP01565,2021-07-07,Compensation,Voluntary,Sales,Senior,Full-time
+EMP01566,2023-06-27,Compensation,Voluntary,HR,Mid,Full-time
+EMP01596,2023-12-05,Work-life balance,Voluntary,HR,Junior,Contract
+EMP01597,2021-11-21,End of contract,Involuntary,Operations,Junior,Full-time
+EMP01608,2023-11-29,Career change,Voluntary,IT,Junior,Full-time
+EMP01610,2022-12-12,Conduct violation,Involuntary,Finance,Junior,Full-time
+EMP01612,2024-02-22,Education,Voluntary,Operations,Mid,Full-time
+EMP01636,2022-05-06,Better opportunity,Voluntary,Customer Service,Lead,Contract
+EMP01639,2023-06-23,Career change,Voluntary,HR,Junior,Full-time
+EMP01646,2022-05-08,Work-life balance,Voluntary,Operations,Lead,Contract
+EMP01655,2023-11-13,Personal reasons,Voluntary,Sales,Lead,Contract
+EMP01661,2023-08-22,Performance,Involuntary,Marketing,Mid,Part-time
+EMP01663,2022-03-24,Performance,Involuntary,HR,Junior,Part-time
+EMP01671,2022-07-29,Work-life balance,Voluntary,IT,Senior,Full-time
+EMP01673,2022-11-25,Work-life balance,Voluntary,Marketing,Junior,Full-time
+EMP01679,2022-12-02,Education,Voluntary,Sales,Mid,Full-time
+EMP01680,2023-06-17,Personal reasons,Voluntary,Finance,Manager,Part-time
+EMP01683,2022-12-22,Career change,Voluntary,Sales,Junior,Full-time
+EMP01688,2022-10-24,Better opportunity,Voluntary,Operations,Senior,Full-time
+EMP01690,,Education,Voluntary,Finance,Junior,Full-time
+EMP01691,2022-05-26,Work-life balance,Voluntary,Operations,Junior,Contract
+EMP01706,2022-06-29,Restructuring,Involuntary,Operations,Lead,Full-time
+EMP01707,2022-09-11,Performance,Involuntary,Customer Service,Manager,Contract
+EMP01714,2023-09-06,Relocation,Voluntary,Legal,Junior,Full-time
+EMP01715,2023-02-02,Personal reasons,Voluntary,Operations,Director,Part-time
+EMP01727,2024-09-12,Better opportunity,Voluntary,Legal,Lead,Full-time
+EMP01731,2023-11-09,Education,Voluntary,IT,Junior,Full-time
+EMP01747,2023-02-01,Education,Voluntary,Operations,Senior,Full-time
+EMP01750,2022-01-30,Position eliminated,Involuntary,Operations,Junior,Full-time
+EMP01763,2024-05-07,Restructuring,Involuntary,Operations,Lead,Contract
+EMP01765,2022-11-23,Personal reasons,Voluntary,HR,Junior,Part-time
+EMP01768,2023-10-13,Career change,Voluntary,Legal,Junior,Full-time
+EMP01779,2021-09-30,Education,Voluntary,Operations,Junior,Contract
+EMP01781,2022-12-26,Position eliminated,Involuntary,IT,Junior,Full-time
+EMP01785,2023-02-24,Relocation,Voluntary,IT,Junior,Contract
+EMP01791,2023-01-12,Compensation,Voluntary,HR,Manager,Full-time
+EMP01792,2021-12-09,Personal reasons,Voluntary,Marketing,Manager,Full-time
+EMP01793,2022-11-05,Conduct violation,Involuntary,Finance,Mid,Full-time
+EMP01796,2023-03-06,Position eliminated,Involuntary,Marketing,Senior,Full-time
+EMP01804,2023-08-29,Career change,Voluntary,Marketing,Junior,Full-time
+EMP01808,2021-10-23,Work-life balance,Voluntary,IT,Junior,Full-time
+EMP01811,2022-03-07,Restructuring,Involuntary,Marketing,Junior,Part-time
+EMP01816,2022-05-08,Compensation,Voluntary,Marketing,Senior,Full-time
+EMP01819,2022-10-08,Education,Voluntary,Finance,Manager,Full-time
+EMP01849,2023-09-22,Work-life balance,Voluntary,Operations,Senior,Full-time
+EMP01851,,Education,Voluntary,Legal,Lead,Part-time
+EMP01860,2023-08-06,End of contract,Involuntary,Finance,Mid,Contract
+EMP01866,2021-10-22,Work-life balance,Voluntary,Operations,Junior,Full-time
+EMP01870,2022-11-07,Position eliminated,Involuntary,Legal,Mid,Full-time
+EMP01871,2023-06-05,Personal reasons,Voluntary,Sales,Junior,Full-time
+EMP01883,2021-11-21,Better opportunity,Voluntary,Marketing,Junior,Full-time
+EMP01884,2023-06-17,Compensation,Voluntary,Legal,Mid,Contract
+EMP01890,2023-03-24,End of contract,Involuntary,Customer Service,Mid,Part-time
+EMP01894,2024-05-23,Career change,Voluntary,Finance,Junior,Full-time
+EMP01904,2024-02-08,Relocation,Voluntary,Legal,Manager,Full-time
+EMP01933,2023-02-12,Restructuring,Involuntary,Marketing,Junior,Full-time
+EMP01936,,Career change,Voluntary,HR,Lead,Full-time
+EMP01945,2022-04-04,Performance,Involuntary,Finance,Mid,Full-time
+EMP01946,2023-01-19,Conduct violation,Involuntary,Finance,Mid,Full-time
+EMP01950,2023-11-04,Relocation,Voluntary,Sales,Junior,Full-time
+EMP01954,2023-09-23,Better opportunity,Voluntary,Marketing,Senior,Full-time
+EMP01980,2023-02-25,Education,Voluntary,Operations,Manager,Full-time
+EMP01982,2021-08-07,Restructuring,Involuntary,Finance,Manager,Full-time
+EMP01991,2021-12-26,Education,Voluntary,Sales,Senior,Contract
+EMP01996,2024-04-05,Position eliminated,Involuntary,Customer Service,Junior,Full-time
