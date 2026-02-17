@@ -4,7 +4,7 @@ import numpy as np
 import plotly.graph_objects as go
 from pathlib import Path
 
-# ─── PAGE CONFIG (must be first Streamlit call) ────────────────
+# ─── PAGE CONFIG (must be first Streamlit call) ────────────────_
 st.set_page_config(
     page_title="HR Integrated Analytics",
     page_icon="📊",
