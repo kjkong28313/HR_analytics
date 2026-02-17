@@ -196,14 +196,20 @@ def page_hr_dashboard():
         exits_by_month = np.zeros(12)
         for _, r in att.iterrows():
             exits_by_month[int(r["Exit_Date"].month - 1)] += 1
-        as_of = pd.Timestamp(year, 12, 31)
-        active_n = len(emp[emp["Hire_Date"] <= as_of])
-        hist_n = len(attrition[
-            attrition["Employee_ID"].isin(emp_ids) & attrition["Exit_Date"].notna() &
-            (attrition["Exit_Date"] <= as_of)
-        ])
-        avg_hc = max(active_n - hist_n / 2, 1)
-        rates = (exits_by_month / avg_hc * 100).tolist()
+
+        # Calculate headcount at the start of each month
+        # HC = employees hired before month start - exits before month start
+        rates = []
+        for m in range(1, 13):
+            month_start = pd.Timestamp(year, m, 1)
+            hired_before = len(emp[emp["Hire_Date"] < month_start])
+            exited_before = len(attrition[
+                attrition["Employee_ID"].isin(emp_ids) & attrition["Exit_Date"].notna() &
+                (attrition["Exit_Date"] < month_start)
+            ])
+            hc_at_start = max(hired_before - exited_before, 1)
+            rates.append(exits_by_month[m - 1] / hc_at_start * 100)
+
         ma = [np.mean(rates[:i + 1]) for i in range(12)]
         return months, rates, ma
 
@@ -217,7 +223,7 @@ def page_hr_dashboard():
         fill="tozeroy", fillcolor="rgba(31,119,180,0.08)",
     ))
     fig_trend.add_trace(go.Scatter(
-        x=months, y=ma, name="12-Mo Moving Avg",
+        x=months, y=ma, name="Cumulative Avg",
         mode="lines", line=dict(color=C["danger"], width=2.5, dash="dash"),
     ))
     fig_trend.update_layout(
