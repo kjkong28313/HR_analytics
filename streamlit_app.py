@@ -921,7 +921,7 @@ def page_workforce_planning():
     # ─── Chart 3: Heatmap ─────────────────────────────────────
     st.markdown(
         '<div class="chart-card"><div class="chart-card-head"><div>'
-        '<h3>Agency × Grade — Projected Headcount</h3><div class="sub">End-of-horizon snapshot with conditional formatting</div>'
+        '<h3>Agency × Grade — Projected Headcount</h3><div class="sub">End-of-horizon snapshot · colour bands based on % share of each agency\'s total headcount</div>'
         '</div></div></div>', unsafe_allow_html=True,
     )
 
@@ -933,11 +933,15 @@ def page_workforce_planning():
     html += '<th style="border-left:2px solid #ddd">Total</th></tr></thead><tbody>'
     for ag in sel_agencies:
         html += f'<tr><td class="rl">{ag}</td>'
-        row_total = 0
+        row_vals = {gr: hm_data.get(ag, {}).get(gr, 0) for gr in GRADES}
+        row_total = sum(row_vals.values())
+        row_div = row_total if row_total > 0 else 1
         for gr in GRADES:
-            v = hm_data.get(ag, {}).get(gr, 0); row_total += v
-            cls = "hm-hi" if v >= 40 else "hm-md" if v >= 15 else "hm-lo" if v >= 1 else "hm-z"
-            html += f'<td class="{cls}">{v}</td>'
+            v = row_vals[gr]
+            pct = v / row_div * 100
+            cls = "hm-hi" if pct >= 25 else "hm-md" if pct >= 10 else "hm-lo" if pct >= 1 else "hm-z"
+            tooltip = f"{pct:.1f}% of agency total"
+            html += f'<td class="{cls}" title="{tooltip}">{v}<br><span style="font-size:0.7rem;color:#666">({pct:.0f}%)</span></td>'
         html += f'<td style="border-left:2px solid #ddd;font-weight:700;color:#333">{row_total}</td></tr>'
 
     html += '<tr style="border-top:2px solid #ddd"><td class="rl" style="color:#1f77b4;font-weight:700">Total</td>'
@@ -947,9 +951,9 @@ def page_workforce_planning():
         html += f'<td style="font-weight:700;color:#333">{col_sum}</td>'
     html += f'<td style="border-left:2px solid #ddd;font-weight:700;color:#1f77b4">{grand}</td></tr></tbody></table>'
     html += """<div class="hm-legend">
-        <div class="hm-legend-item"><div class="hm-legend-swatch" style="background:#d1fae5"></div>High (≥40)</div>
-        <div class="hm-legend-item"><div class="hm-legend-swatch" style="background:#fef3c7"></div>Medium (15–39)</div>
-        <div class="hm-legend-item"><div class="hm-legend-swatch" style="background:#ffe4e6"></div>Low (1–14)</div>
+        <div class="hm-legend-item"><div class="hm-legend-swatch" style="background:#d1fae5"></div>High (≥25% of agency)</div>
+        <div class="hm-legend-item"><div class="hm-legend-swatch" style="background:#fef3c7"></div>Medium (10–24%)</div>
+        <div class="hm-legend-item"><div class="hm-legend-swatch" style="background:#ffe4e6"></div>Low (1–9%)</div>
         <div class="hm-legend-item"><div class="hm-legend-swatch" style="background:#f9fafb"></div>Zero</div></div>"""
     st.markdown(html, unsafe_allow_html=True)
 
