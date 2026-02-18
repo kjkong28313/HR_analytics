@@ -331,10 +331,12 @@ def page_hr_dashboard():
             for i, grade in enumerate(pivot.columns):
                 fig_hc.add_trace(go.Bar(x=pivot.index, y=pivot[grade], name=grade, marker_color=SET2[i % len(SET2)]))
             fig_hc.update_layout(
-                title="Headcount by Agency & Grade", barmode="stack",
-                xaxis=dict(tickangle=-40), yaxis=dict(title="Headcount", rangemode="tozero"),
-                legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="center", x=0.5),
-                height=380, margin=dict(l=50, r=20, t=50, b=80), plot_bgcolor="white",
+                title=dict(text="Headcount by Agency & Grade", x=0.5, xanchor="center", font=dict(size=13)),
+                barmode="stack",
+                xaxis=dict(tickangle=-40),
+                yaxis=dict(title="Headcount", rangemode="tozero"),
+                legend=dict(orientation="h", yanchor="top", y=-0.28, xanchor="center", x=0.5, font=dict(size=11)),
+                height=420, margin=dict(l=50, r=20, t=50, b=120), plot_bgcolor="white",
             )
             fig_hc.update_yaxes(gridcolor="#eee")
             st.plotly_chart(fig_hc, use_container_width=True)
@@ -347,10 +349,11 @@ def page_hr_dashboard():
             fig_exit.add_trace(go.Bar(y=exit_reasons.index, x=exit_reasons["Voluntary"], name="Voluntary", orientation="h", marker_color=C["success"]))
             fig_exit.add_trace(go.Bar(y=exit_reasons.index, x=exit_reasons["Involuntary"], name="Involuntary", orientation="h", marker_color=C["danger"]))
             fig_exit.update_layout(
-                title=f"Exit Reasons – {sel_year}", barmode="stack",
+                title=dict(text=f"Exit Reasons – {sel_year}", x=0.5, xanchor="center", font=dict(size=13)),
+                barmode="stack",
                 xaxis=dict(title="Count", rangemode="tozero"),
-                legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="center", x=0.5),
-                height=380, margin=dict(l=140, r=20, t=50, b=40), plot_bgcolor="white",
+                legend=dict(orientation="h", yanchor="top", y=-0.18, xanchor="center", x=0.5, font=dict(size=11)),
+                height=420, margin=dict(l=140, r=20, t=50, b=80), plot_bgcolor="white",
             )
             fig_exit.update_xaxes(gridcolor="#eee")
             fig_exit.update_yaxes(showgrid=False)
@@ -371,32 +374,26 @@ def page_hr_dashboard():
         opening = max(opening - prev_exits, 0)
         n_hires = len(hir)
         n_exits = len(att)
-        # Net transfers: count movements INTO selected agencies minus OUT OF them
-        # within the year window (tra already filtered to the year and agencies).
-        n_transfers_in  = len(tra[tra["To_Agency"].isin(sel_agencies)])
-        n_transfers_out = len(tra[tra["From_Agency"].isin(sel_agencies)])
-        net_transfers = n_transfers_in - n_transfers_out
-        closing = max(opening + n_hires - n_exits + net_transfers, 0)
-        return opening, n_hires, n_exits, net_transfers, closing
+        n_transfers = len(tra)
+        closing = max(opening + n_hires - n_exits, 0)
+        return opening, n_hires, n_exits, n_transfers, closing
 
-    opening, n_hires, n_exits, net_transfers, closing = calc_waterfall(fd_emp, fd_att, fd_hir, fd_tra, fd_emp_ids, sel_year)
+    opening, n_hires, n_exits, n_transfers, closing = calc_waterfall(fd_emp, fd_att, fd_hir, fd_tra, fd_emp_ids, sel_year)
 
     col_wf, col_ag = st.columns(2)
     with col_wf:
-        labels = ["Opening", "Hires", "Transfers (Net)", "Exits", "Closing"]
+        labels = ["Opening", "Hires", "Transfers", "Exits", "Closing"]
         # Waterfall bases: each bar sits on top of the running total so far
         running = opening
-        base_hires    = running;  running += n_hires
-        base_xfers    = running;  running += net_transfers
-        base_exits    = running;  running -= n_exits
-        bases  = [0,          base_hires,    base_xfers,        base_exits,    0]
-        vals   = [opening,    n_hires,        abs(net_transfers), n_exits,      closing]
-        colors = [C["primary"], C["success"],
-                  C["info"] if net_transfers >= 0 else C["warning"],
-                  C["danger"], C["primary"]]
+        base_hires = running;  running += n_hires
+        base_xfers = running
+        base_exits = running;  running -= n_exits
+        bases  = [0,       base_hires,   base_xfers,    base_exits,  0]
+        vals   = [opening, n_hires,      n_transfers,   n_exits,     closing]
+        colors = [C["primary"], C["success"], C["info"], C["danger"], C["primary"]]
         texts  = [f"{opening:,}",
                   f"+{n_hires:,}",
-                  f"{'+' if net_transfers >= 0 else ''}{net_transfers:,}",
+                  f"{n_transfers:,}",
                   f"-{n_exits:,}",
                   f"{closing:,}"]
         fig_wf = go.Figure()
@@ -438,17 +435,13 @@ def page_hr_dashboard():
         vol_n = len(fd_att[fd_att["Exit_Type"] == "Voluntary"])
         inv_n = len(fd_att[fd_att["Exit_Type"] == "Involuntary"])
         tot_att = len(fd_att) or 1
-        tra_in  = len(fd_tra[fd_tra["To_Agency"].isin(sel_agencies)])
-        tra_out = len(fd_tra[fd_tra["From_Agency"].isin(sel_agencies)])
-        tra_net = tra_in - tra_out
-        net_sign = "+" if tra_net >= 0 else ""
         items = [
             ("Employees (filtered)", f"{len(fd_emp):,}"),
             ("Exits this year", f"{len(fd_att):,}"),
             ("  – Voluntary", f"{vol_n:,} ({vol_n / tot_att * 100:.0f}%)"),
             ("  – Involuntary", f"{inv_n:,} ({inv_n / tot_att * 100:.0f}%)"),
             ("Hires this year", f"{len(fd_hir):,}"),
-            ("Transfers this year", f"{len(fd_tra):,}  (In: {tra_in}, Out: {tra_out}, Net: {net_sign}{tra_net})"),
+            ("Transfers this year", f"{len(fd_tra):,}"),
         ]
         for label, val in items:
             st.markdown(f'<div class="summary-item">{label}: <span>{val}</span></div>', unsafe_allow_html=True)
@@ -509,18 +502,19 @@ def page_workforce_planning():
         .chart-card-head h3 { font-family: 'Segoe UI', sans-serif; font-weight: 700; font-size: 0.88rem; color: #333; margin: 0; }
         .chart-card-head .sub { font-size: 0.65rem; color: #999; margin-top: 2px; }
         .chart-card-body { padding: 12px 20px 16px; }
-        .hm-table { width: 100%; border-collapse: collapse; font-size: 0.75rem; }
-        .hm-table th { padding: 7px 10px; text-align: center; background: #2c3e50; color: #fff; font-weight: 600; border: 1px solid #ddd; font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.04em; }
-        .hm-table th.rh { text-align: left; }
-        .hm-table td { padding: 6px 10px; text-align: center; border: 1px solid #eee; font-weight: 500; }
-        .hm-table td.rl { text-align: left; color: #333; font-weight: 600; background: #f8f9fa; font-size: 0.72rem; }
+        .hm-wrap { overflow-x: auto; width: 100%; }
+        .hm-table { width: 100%; border-collapse: collapse; font-size: 0.75rem; table-layout: auto; }
+        .hm-table th { padding: 8px 14px; text-align: center; background: #2c3e50; color: #fff; font-weight: 600; border: 1px solid #ddd; font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.04em; white-space: nowrap; }
+        .hm-table th.rh { text-align: left; min-width: 120px; }
+        .hm-table td { padding: 6px 14px; text-align: center; border: 1px solid #eee; font-weight: 500; white-space: nowrap; min-width: 80px; }
+        .hm-table td.rl { text-align: left; color: #333; font-weight: 600; background: #f8f9fa; font-size: 0.72rem; min-width: 120px; }
         .hm-hi  { background: #d1fae5; color: #065f46; }
         .hm-md  { background: #fef3c7; color: #92400e; }
         .hm-lo  { background: #ffe4e6; color: #9f1239; }
         .hm-z   { background: #f9fafb; color: #aaa; }
-        .hm-legend { display: flex; gap: 16px; margin-top: 12px; justify-content: flex-end; }
-        .hm-legend-item { display: flex; align-items: center; gap: 6px; font-size: 0.65rem; color: #777; }
-        .hm-legend-swatch { width: 12px; height: 12px; border-radius: 3px; display: inline-block; }
+        .hm-legend { display: flex; flex-wrap: wrap; gap: 10px 20px; margin-top: 14px; justify-content: flex-start; padding: 10px 0 4px; border-top: 1px solid #eee; }
+        .hm-legend-item { display: flex; align-items: center; gap: 6px; font-size: 0.68rem; color: #555; white-space: nowrap; }
+        .hm-legend-swatch { width: 13px; height: 13px; border-radius: 3px; display: inline-block; flex-shrink: 0; }
     </style>
     """, unsafe_allow_html=True)
 
@@ -927,7 +921,7 @@ def page_workforce_planning():
 
     _, hm_data = project_heatmap(sel_agencies, active_params["attrRate"], active_params["hireRate"], active_params["freezeOn"], active_params["freezeStart"], active_params["freezeMo"], horizon)
 
-    html = '<table class="hm-table"><thead><tr><th class="rh">Agency \\ Grade</th>'
+    html = '<div class="hm-wrap"><table class="hm-table"><thead><tr><th class="rh">Agency \\ Grade</th>'
     for g in GRADES:
         html += f"<th>{g}</th>"
     html += '<th style="border-left:2px solid #ddd">Total</th></tr></thead><tbody>'
@@ -949,7 +943,7 @@ def page_workforce_planning():
     for gr in GRADES:
         col_sum = sum(hm_data.get(ag, {}).get(gr, 0) for ag in sel_agencies); grand += col_sum
         html += f'<td style="font-weight:700;color:#333">{col_sum}</td>'
-    html += f'<td style="border-left:2px solid #ddd;font-weight:700;color:#1f77b4">{grand}</td></tr></tbody></table>'
+    html += f'<td style="border-left:2px solid #ddd;font-weight:700;color:#1f77b4">{grand}</td></tr></tbody></table></div>'
     html += """<div class="hm-legend">
         <div class="hm-legend-item"><div class="hm-legend-swatch" style="background:#d1fae5"></div>High (≥25% of agency)</div>
         <div class="hm-legend-item"><div class="hm-legend-swatch" style="background:#fef3c7"></div>Medium (10–24%)</div>
