@@ -4,7 +4,7 @@ import numpy as np
 import plotly.graph_objects as go
 from pathlib import Path
 
-# ─── PAGE CONFIG (must be first Streamlit call) ────────────────_
+# ─── PAGE CONFIG (must be first Streamlit call) ────────────────
 st.set_page_config(
     page_title="HR Integrated Analytics",
     page_icon="📊",
@@ -33,10 +33,47 @@ def load_all_data():
     employees = employees.drop_duplicates(subset=["Employee_ID"])
     dup_count = len(employees_with_dups) - len(employees)
 
+    # ── Apply transfers: update each employee's Agency (and Job_Grade) to
+    #    reflect their most recent transfer destination.  employees.csv stores
+    #    the original agency at time of hire; without this fix every per-agency
+    #    headcount and ratio is wrong by up to ±11 people.
+    latest_transfers = (
+        transfers
+        .sort_values("Transfer_Date")
+        .groupby("Employee_ID", as_index=False)
+        .last()[["Employee_ID", "To_Agency", "Job_Grade"]]
+        .rename(columns={"To_Agency": "Current_Agency", "Job_Grade": "Current_Grade"})
+    )
+    employees = employees.merge(latest_transfers, on="Employee_ID", how="left")
+    mask = employees["Current_Agency"].notna()
+    employees.loc[mask, "Agency"]    = employees.loc[mask, "Current_Agency"]
+    employees.loc[mask, "Job_Grade"] = employees.loc[mask, "Current_Grade"]
+    employees.drop(columns=["Current_Agency", "Current_Grade"], inplace=True)
+
     return employees, attrition, hires, transfers, quality_log, dup_count
 
 
 employees, attrition, hires, transfers, quality_log, DUP_COUNT = load_all_data()
+
+
+def get_last_month(year):
+    """
+    Detect the last month that has data for a given year.
+    Looks at all date columns across all tables and finds the latest month.
+    For completed years this returns 12 (December).
+    For partial years (e.g. 2026 with data only through Feb) this returns 2.
+    """
+    yr_start = pd.Timestamp(year, 1, 1)
+    yr_end = pd.Timestamp(year, 12, 31)
+    all_dates_in_year = pd.concat([
+        employees["Hire_Date"][(employees["Hire_Date"] >= yr_start) & (employees["Hire_Date"] <= yr_end)],
+        attrition["Exit_Date"][(attrition["Exit_Date"].notna()) & (attrition["Exit_Date"] >= yr_start) & (attrition["Exit_Date"] <= yr_end)],
+        hires["Hire_Date"][(hires["Hire_Date"] >= yr_start) & (hires["Hire_Date"] <= yr_end)],
+        transfers["Transfer_Date"][(transfers["Transfer_Date"] >= yr_start) & (transfers["Transfer_Date"] <= yr_end)],
+    ])
+    if all_dates_in_year.empty:
+        return 12
+    return int(all_dates_in_year.dt.month.max())
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -122,8 +159,11 @@ def page_hr_dashboard():
 
     # ─── Filter Engine ─────────────────────────────────────────
     def filter_data(agencies, grades, year):
+        last_month = get_last_month(year)
         yr_start = pd.Timestamp(year, 1, 1)
-        yr_end = pd.Timestamp(year, 12, 31)
+        yr_end = pd.Timestamp(year, last_month, 28 if last_month == 2 else 30 if last_month in [4,6,9,11] else 31)
+        # employees.Agency already reflects the most recent transfer destination,
+        # so this filter now correctly captures the current agency of each person.
         emp = employees[employees["Agency"].isin(agencies) & employees["Job_Grade"].isin(grades)].copy()
         emp_ids = set(emp["Employee_ID"])
         att = attrition[
@@ -135,18 +175,24 @@ def page_hr_dashboard():
             hires["Agency"].isin(agencies) & hires["Job_Grade"].isin(grades) &
             (hires["Hire_Date"] >= yr_start) & (hires["Hire_Date"] <= yr_end)
         ].copy()
+        # Count a transfer if it touches the selected agencies on either side
+        # AND falls within the selected year window.
         tra = transfers[
             (transfers["From_Agency"].isin(agencies) | transfers["To_Agency"].isin(agencies)) &
             transfers["Job_Grade"].isin(grades) &
             (transfers["Transfer_Date"] >= yr_start) & (transfers["Transfer_Date"] <= yr_end)
         ].copy()
-        return emp, att, hir, tra, emp_ids
+        return emp, att, hir, tra, emp_ids, last_month
 
-    fd_emp, fd_att, fd_hir, fd_tra, fd_emp_ids = filter_data(sel_agencies, sel_grades, sel_year)
+    fd_emp, fd_att, fd_hir, fd_tra, fd_emp_ids, last_month = filter_data(sel_agencies, sel_grades, sel_year)
 
     # ─── KPI Calculations ──────────────────────────────────────
-    def calc_kpis(emp, att, emp_ids, year):
-        as_of = pd.Timestamp(year, 12, 31)
+    def calc_kpis(emp, att, emp_ids, year, last_month):
+        # Use last day of the last month with data instead of always Dec 31
+        last_day = pd.Timestamp(year, last_month, 28 if last_month == 2 else 30 if last_month in [4,6,9,11] else 31)
+        as_of = last_day
+        # emp already reflects transfer-adjusted Agency, so active = everyone
+        # hired on or before as_of who is in the (transfer-adjusted) agency filter.
         active = emp[emp["Hire_Date"] <= as_of]
         hist_att = attrition[
             attrition["Employee_ID"].isin(emp_ids) & attrition["Exit_Date"].notna() &
@@ -154,27 +200,32 @@ def page_hr_dashboard():
         ]
         hc = max(len(active) - len(hist_att), 0)
         div = hc if hc > 0 else 1
-        mtd_start = pd.Timestamp(year, 12, 1)
+        # MTD = exits in the last month with data
+        mtd_start = pd.Timestamp(year, last_month, 1)
         ytd_start = pd.Timestamp(year, 1, 1)
-        roll_start = pd.Timestamp(year - 1, 12, 31)
+        roll_start = as_of - pd.DateOffset(months=12)
         roll_att = attrition[
             attrition["Employee_ID"].isin(emp_ids) & attrition["Exit_Date"].notna() &
             (attrition["Exit_Date"] >= roll_start) & (attrition["Exit_Date"] <= as_of)
         ]
         mtd = len(att[att["Exit_Date"] >= mtd_start]) / div * 100
         ytd = len(att[att["Exit_Date"] >= ytd_start]) / div * 100
-        roll = len(roll_att) / 12 / div * 100
-        return hc, mtd, ytd, roll
+        # Rolling average: divide by number of months in the window (up to 12)
+        roll_months = min(last_month, 12)
+        roll = len(roll_att) / roll_months / div * 100
+        month_names = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+        mtd_label = month_names[last_month - 1]
+        return hc, mtd, ytd, roll, mtd_label
 
-    hc, mtd, ytd, roll = calc_kpis(fd_emp, fd_att, fd_emp_ids, sel_year)
+    hc, mtd, ytd, roll, mtd_label = calc_kpis(fd_emp, fd_att, fd_emp_ids, sel_year, last_month)
 
     # ─── KPI Cards ─────────────────────────────────────────────
     kpi_cols = st.columns(4)
     kpi_data = [
         ("Current Headcount", f"{hc:,}", "Active employees", "#17a2b8"),
-        ("MTD Attrition", f"{mtd:.2f}%", "Month-to-date", "#ff7f0e"),
-        ("YTD Attrition", f"{ytd:.2f}%", "Year-to-date", "#ff7f0e"),
-        ("12-Mo Rolling Avg", f"{roll:.2f}%", "Rolling average", "#1f77b4"),
+        (f"{mtd_label} Attrition", f"{mtd:.2f}%", "Month-to-date", "#ff7f0e"),
+        ("YTD Attrition", f"{ytd:.2f}%", f"Jan–{mtd_label}", "#ff7f0e"),
+        ("Rolling Avg", f"{roll:.2f}%", f"{last_month}-month avg", "#1f77b4"),
     ]
     for col, (label, value, sub, color) in zip(kpi_cols, kpi_data):
         col.markdown(f"""
@@ -191,16 +242,19 @@ def page_hr_dashboard():
     st.markdown("<div style='height:18px'></div>", unsafe_allow_html=True)
 
     # ─── Attrition Trend ───────────────────────────────────────
-    def calc_monthly(emp, att, emp_ids, year):
-        months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
-        exits_by_month = np.zeros(12)
+    def calc_monthly(emp, att, emp_ids, year, last_month):
+        all_months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+        months = all_months[:last_month]  # Only include months with data
+        exits_by_month = np.zeros(last_month)
         for _, r in att.iterrows():
-            exits_by_month[int(r["Exit_Date"].month - 1)] += 1
+            m_idx = int(r["Exit_Date"].month - 1)
+            if m_idx < last_month:
+                exits_by_month[m_idx] += 1
 
         # Calculate headcount at the start of each month
         # HC = employees hired before month start - exits before month start
         rates = []
-        for m in range(1, 13):
+        for m in range(1, last_month + 1):
             month_start = pd.Timestamp(year, m, 1)
             hired_before = len(emp[emp["Hire_Date"] < month_start])
             exited_before = len(attrition[
@@ -210,10 +264,10 @@ def page_hr_dashboard():
             hc_at_start = max(hired_before - exited_before, 1)
             rates.append(exits_by_month[m - 1] / hc_at_start * 100)
 
-        ma = [np.mean(rates[:i + 1]) for i in range(12)]
+        ma = [np.mean(rates[:i + 1]) for i in range(last_month)]
         return months, rates, ma
 
-    months, rates, ma = calc_monthly(fd_emp, fd_att, fd_emp_ids, sel_year)
+    months, rates, ma = calc_monthly(fd_emp, fd_att, fd_emp_ids, sel_year, last_month)
 
     fig_trend = go.Figure()
     fig_trend.add_trace(go.Scatter(
@@ -238,8 +292,10 @@ def page_hr_dashboard():
     st.plotly_chart(fig_trend, use_container_width=True)
 
     # ─── Headcount by Agency & Grade | Exit Reasons ────────────
-    def calc_pivot(emp, emp_ids, grades, year):
-        as_of = pd.Timestamp(year, 12, 31)
+    def calc_pivot(emp, emp_ids, grades, year, last_month):
+        as_of = pd.Timestamp(year, last_month, 28 if last_month == 2 else 30 if last_month in [4,6,9,11] else 31)
+        # emp.Agency already reflects the most recent transfer destination,
+        # so this pivot now correctly shows each person under their current agency.
         active = emp[emp["Hire_Date"] <= as_of].copy()
         exited_ids = set(attrition[
             attrition["Employee_ID"].isin(emp_ids) & attrition["Exit_Date"].notna() &
@@ -253,7 +309,7 @@ def page_hr_dashboard():
         pivot = pivot[[g for g in grades if g in pivot.columns]]
         return pivot
 
-    pivot = calc_pivot(fd_emp, fd_emp_ids, sel_grades, sel_year)
+    pivot = calc_pivot(fd_emp, fd_emp_ids, sel_grades, sel_year, last_month)
 
     def calc_exit_reasons(att):
         if att.empty:
@@ -303,8 +359,10 @@ def page_hr_dashboard():
             st.info("No exit data for the selected filters.")
 
     # ─── Waterfall | Agency Totals ─────────────────────────────
-    def calc_waterfall(emp, att, hir, emp_ids, year):
+    def calc_waterfall(emp, att, hir, tra, emp_ids, year):
         yr_start = pd.Timestamp(year, 1, 1)
+        # emp.Agency is transfer-adjusted, so opening HC is correctly scoped
+        # to the selected agencies as they stood at year start.
         opening = len(emp[emp["Hire_Date"] < yr_start])
         prev_exits = len(attrition[
             attrition["Employee_ID"].isin(emp_ids) & attrition["Exit_Date"].notna() &
@@ -313,23 +371,39 @@ def page_hr_dashboard():
         opening = max(opening - prev_exits, 0)
         n_hires = len(hir)
         n_exits = len(att)
-        closing = max(opening + n_hires - n_exits, 0)
-        return opening, n_hires, n_exits, closing
+        # Net transfers: count movements INTO selected agencies minus OUT OF them
+        # within the year window (tra already filtered to the year and agencies).
+        n_transfers_in  = len(tra[tra["To_Agency"].isin(sel_agencies)])
+        n_transfers_out = len(tra[tra["From_Agency"].isin(sel_agencies)])
+        net_transfers = n_transfers_in - n_transfers_out
+        closing = max(opening + n_hires - n_exits + net_transfers, 0)
+        return opening, n_hires, n_exits, net_transfers, closing
 
-    opening, n_hires, n_exits, closing = calc_waterfall(fd_emp, fd_att, fd_hir, fd_emp_ids, sel_year)
+    opening, n_hires, n_exits, net_transfers, closing = calc_waterfall(fd_emp, fd_att, fd_hir, fd_tra, fd_emp_ids, sel_year)
 
     col_wf, col_ag = st.columns(2)
     with col_wf:
-        labels = ["Opening", "Hires", "Exits", "Closing"]
-        bases = [0, opening, opening + n_hires - n_exits, 0]
-        vals = [opening, n_hires, n_exits, closing]
-        colors = [C["primary"], C["success"], C["danger"], C["primary"]]
+        labels = ["Opening", "Hires", "Transfers (Net)", "Exits", "Closing"]
+        # Waterfall bases: each bar sits on top of the running total so far
+        running = opening
+        base_hires    = running;  running += n_hires
+        base_xfers    = running;  running += net_transfers
+        base_exits    = running;  running -= n_exits
+        bases  = [0,          base_hires,    base_xfers,        base_exits,    0]
+        vals   = [opening,    n_hires,        abs(net_transfers), n_exits,      closing]
+        colors = [C["primary"], C["success"],
+                  C["info"] if net_transfers >= 0 else C["warning"],
+                  C["danger"], C["primary"]]
+        texts  = [f"{opening:,}",
+                  f"+{n_hires:,}",
+                  f"{'+' if net_transfers >= 0 else ''}{net_transfers:,}",
+                  f"-{n_exits:,}",
+                  f"{closing:,}"]
         fig_wf = go.Figure()
         fig_wf.add_trace(go.Bar(x=labels, y=bases, marker_color="rgba(0,0,0,0)", showlegend=False, hoverinfo="skip"))
         fig_wf.add_trace(go.Bar(
             x=labels, y=vals, marker_color=colors,
-            text=[f"{v:,}" if i != 2 else f"-{v:,}" for i, v in enumerate(vals)],
-            textposition="outside", showlegend=False,
+            text=texts, textposition="outside", showlegend=False,
         ))
         fig_wf.update_layout(
             title=f"Headcount Movement – {sel_year}", barmode="stack",
@@ -364,13 +438,17 @@ def page_hr_dashboard():
         vol_n = len(fd_att[fd_att["Exit_Type"] == "Voluntary"])
         inv_n = len(fd_att[fd_att["Exit_Type"] == "Involuntary"])
         tot_att = len(fd_att) or 1
+        tra_in  = len(fd_tra[fd_tra["To_Agency"].isin(sel_agencies)])
+        tra_out = len(fd_tra[fd_tra["From_Agency"].isin(sel_agencies)])
+        tra_net = tra_in - tra_out
+        net_sign = "+" if tra_net >= 0 else ""
         items = [
             ("Employees (filtered)", f"{len(fd_emp):,}"),
             ("Exits this year", f"{len(fd_att):,}"),
             ("  – Voluntary", f"{vol_n:,} ({vol_n / tot_att * 100:.0f}%)"),
             ("  – Involuntary", f"{inv_n:,} ({inv_n / tot_att * 100:.0f}%)"),
             ("Hires this year", f"{len(fd_hir):,}"),
-            ("Transfers this year", f"{len(fd_tra):,}"),
+            ("Transfers this year", f"{len(fd_tra):,}  (In: {tra_in}, Out: {tra_out}, Net: {net_sign}{tra_net})"),
         ]
         for label, val in items:
             st.markdown(f'<div class="summary-item">{label}: <span>{val}</span></div>', unsafe_allow_html=True)
@@ -453,6 +531,8 @@ def page_workforce_planning():
     COL_SURFACE = "white"; COL_BORDER = "#eee"; COL_TEXT = "#333"; COL_DIM = "#777"
 
     # Compute base headcount
+    # employees.Agency was updated in load_all_data() to reflect each person's
+    # most recent transfer destination, so BASE_HC is now transfer-correct.
     exited_ids = set(attrition[attrition["Exit_Date"].notna()]["Employee_ID"])
     active_emp = employees[~employees["Employee_ID"].isin(exited_ids)]
     BASE_HC = active_emp.groupby(["Agency", "Job_Grade"]).size().unstack(fill_value=0)
@@ -464,6 +544,12 @@ def page_workforce_planning():
     GRADES = [g for g in GRADE_ORDER if g in BASE_HC.columns]
     TOTAL_HC = int(BASE_HC.values.sum())
 
+    # Determine the "as of" date — the latest date across all data
+    latest_exit = attrition["Exit_Date"].dropna().max()
+    latest_hire = hires["Hire_Date"].max()
+    as_of_date = max(latest_exit, latest_hire)
+    as_of_label = as_of_date.strftime("%b %Y")  # e.g. "Dec 2024"
+
     # Monthly rates
     exits_with_dates = attrition[attrition["Exit_Date"].notna()]
     date_range_months = max((exits_with_dates["Exit_Date"].max() - exits_with_dates["Exit_Date"].min()).days / 30.44, 1) if len(exits_with_dates) > 0 else 12
@@ -471,44 +557,134 @@ def page_workforce_planning():
     BASE_EXIT = len(exits_with_dates) / date_range_months
     BASE_HIRE = len(hires) / hire_range_months
 
-    total_exits_count = len(exits_with_dates) or 1
-    AG_EXIT_SH = (exits_with_dates.groupby("Agency").size() / total_exits_count).to_dict()
-    total_hires_count = len(hires) or 1
-    AG_HIRE_SH = (hires.groupby("Agency").size() / total_hires_count).to_dict()
-    GR_EXIT_SH = (exits_with_dates.groupby("Job_Grade").size() / total_exits_count).to_dict()
-    GR_HIRE_SH = (hires.groupby("Job_Grade").size() / total_hires_count).to_dict()
+    # ─── Per-Agency and Per-Grade rate ratios ──────────────────
+    # Calculate how each agency/grade deviates from the overall rate.
+    # A ratio of 1.2 means "20% higher than average".
+
+    # Overall rates
+    BASE_ATTRITION_RATE = BASE_EXIT / TOTAL_HC if TOTAL_HC > 0 else 0
+    BASE_HIRE_RATE = BASE_HIRE / TOTAL_HC if TOTAL_HC > 0 else 0
+
+    # Per-agency headcount and rates
+    ag_hc_counts = active_emp.groupby("Agency").size()
+    ag_exit_counts = exits_with_dates.groupby("Agency").size()
+    ag_hire_counts = hires.groupby("Agency").size()
+
+    AG_ATTR_RATIO = {}  # agency attrition ratio relative to overall
+    AG_HIRE_RATIO = {}  # agency hire ratio relative to overall
+    for ag in AGENCIES:
+        hc = ag_hc_counts.get(ag, 1)
+        ag_attr_rate = (ag_exit_counts.get(ag, 0) / date_range_months / hc) if hc > 0 else 0
+        ag_hire_rate = (ag_hire_counts.get(ag, 0) / hire_range_months / hc) if hc > 0 else 0
+        AG_ATTR_RATIO[ag] = ag_attr_rate / BASE_ATTRITION_RATE if BASE_ATTRITION_RATE > 0 else 1.0
+        AG_HIRE_RATIO[ag] = ag_hire_rate / BASE_HIRE_RATE if BASE_HIRE_RATE > 0 else 1.0
+
+    # Per-grade headcount and rates
+    gr_hc_counts = active_emp.groupby("Job_Grade").size()
+    gr_exit_counts = exits_with_dates.groupby("Job_Grade").size()
+    gr_hire_counts = hires.groupby("Job_Grade").size()
+
+    GR_ATTR_RATIO = {}  # grade attrition ratio relative to overall
+    GR_HIRE_RATIO = {}  # grade hire ratio relative to overall
+    for gr in GRADES:
+        hc = gr_hc_counts.get(gr, 1)
+        gr_attr_rate = (gr_exit_counts.get(gr, 0) / date_range_months / hc) if hc > 0 else 0
+        gr_hire_rate = (gr_hire_counts.get(gr, 0) / hire_range_months / hc) if hc > 0 else 0
+        GR_ATTR_RATIO[gr] = gr_attr_rate / BASE_ATTRITION_RATE if BASE_ATTRITION_RATE > 0 else 1.0
+        GR_HIRE_RATIO[gr] = gr_hire_rate / BASE_HIRE_RATE if BASE_HIRE_RATE > 0 else 1.0
 
     # ─── Projection Engine ─────────────────────────────────────
     def ag_hc(agencies):
         return int(BASE_HC.loc[BASE_HC.index.isin(agencies)].values.sum())
 
-    def project(agencies, attr_delta, hire_delta, freeze_on, freeze_months, horizon):
-        series = []
-        hc = ag_hc(agencies)
-        m_exit = sum(BASE_EXIT * AG_EXIT_SH.get(a, 0.125) for a in agencies) * (1 + attr_delta / 100)
-        m_hire = sum(BASE_HIRE * AG_HIRE_SH.get(a, 0.125) for a in agencies) * (1 + hire_delta / 100)
-        series.append({"m": 0, "hc": hc, "e": 0, "h": 0})
-        for i in range(1, horizon + 1):
-            frozen = freeze_on and i <= freeze_months
-            e = round(m_exit)
-            h = 0 if frozen else round(m_hire)
-            hc = max(0, hc - e + h)
-            series.append({"m": i, "hc": hc, "e": e, "h": h})
-        return series
+    def project_heatmap(agencies, attr_rate_pct, hire_rate_pct, freeze_on, freeze_start, freeze_months, horizon):
+        """
+        Project headcount per agency×grade cell.
+        Uses agency rate for exits/hires at agency level,
+        then distributes within each agency by grade ratio weights.
+        Uses largest-remainder method to ensure grade totals = agency total.
+        Freeze runs from freeze_start to freeze_start + freeze_months - 1.
+        Returns both the final heatmap and a month-by-month series.
+        """
+        attr_rate = attr_rate_pct / 100
+        hire_rate = hire_rate_pct / 100
+        freeze_end = freeze_start + freeze_months - 1 if freeze_on else 0
 
-    def project_heatmap(attr_delta, hire_delta, freeze_on, freeze_months, horizon):
-        result = {}
+        def distribute(total, weights, keys):
+            """Distribute an integer total across keys by weights using largest-remainder method."""
+            if total == 0 or not keys:
+                return {k: 0 for k in keys}
+            w_sum = sum(weights[k] for k in keys)
+            if w_sum == 0:
+                # Equal distribution if no weights
+                base = total // len(keys)
+                result = {k: base for k in keys}
+                remainder = total - base * len(keys)
+                for j, k in enumerate(keys):
+                    if j < remainder:
+                        result[k] += 1
+                return result
+            # Calculate exact (fractional) shares
+            exact = {k: total * weights[k] / w_sum for k in keys}
+            # Floor each share
+            floored = {k: int(exact[k]) for k in keys}
+            # Remainder to distribute
+            remainder = total - sum(floored.values())
+            # Sort by fractional part descending, give +1 to top remainder items
+            by_frac = sorted(keys, key=lambda k: exact[k] - floored[k], reverse=True)
+            for j in range(remainder):
+                floored[by_frac[j]] += 1
+            return floored
+
+        # Initialize per-agency grade headcounts
+        ag_grade_hcs = {}
+        for ag in agencies:
+            if ag in BASE_HC.index:
+                ag_grade_hcs[ag] = {gr: float(BASE_HC.loc[ag, gr]) for gr in GRADES}
+
+        total_hc = round(sum(v for ag in ag_grade_hcs for v in ag_grade_hcs[ag].values()))
+        series = [{"m": 0, "hc": total_hc, "e": 0, "h": 0}]
+
+        for i in range(1, horizon + 1):
+            frozen = freeze_on and freeze_start <= i <= freeze_end
+            total_e = 0
+            total_h = 0
+
+            for ag in list(ag_grade_hcs.keys()):
+                ag_total = sum(ag_grade_hcs[ag].values())
+
+                # Agency-level exits and hires
+                ag_e = round(ag_total * attr_rate * AG_ATTR_RATIO.get(ag, 1.0))
+                ag_h = 0 if frozen else round(ag_total * hire_rate * AG_HIRE_RATIO.get(ag, 1.0))
+
+                # Distribute across grades using largest-remainder method
+                exit_dist = distribute(ag_e, GR_ATTR_RATIO, GRADES)
+                hire_dist = distribute(ag_h, GR_HIRE_RATIO, GRADES)
+
+                for gr in GRADES:
+                    ag_grade_hcs[ag][gr] = max(0, ag_grade_hcs[ag][gr] - exit_dist[gr] + hire_dist[gr])
+
+                total_e += ag_e
+                total_h += ag_h
+
+            total_hc = round(sum(v for ag in ag_grade_hcs for v in ag_grade_hcs[ag].values()))
+            series.append({"m": i, "hc": total_hc, "e": total_e, "h": total_h})
+
+        # Build final heatmap result
+        heatmap = {}
+        for ag in ag_grade_hcs:
+            heatmap[ag] = {gr: round(ag_grade_hcs[ag][gr]) for gr in GRADES}
+        # Include agencies not in the selected filter (for full heatmap display)
         for ag in AGENCIES:
-            result[ag] = {}
-            for gr in GRADES:
-                v = int(BASE_HC.loc[ag, gr]) if ag in BASE_HC.index else 0
-                for i in range(1, horizon + 1):
-                    frozen = freeze_on and i <= freeze_months
-                    e_m = BASE_EXIT * (1 + attr_delta / 100) * AG_EXIT_SH.get(ag, 0.125) * GR_EXIT_SH.get(gr, 0.16) * 6
-                    h_m = 0 if frozen else BASE_HIRE * (1 + hire_delta / 100) * AG_HIRE_SH.get(ag, 0.125) * GR_HIRE_SH.get(gr, 0.16) * 6
-                    v = max(0, round(v - e_m + h_m))
-                result[ag][gr] = v
-        return result
+            if ag not in heatmap:
+                heatmap[ag] = {gr: 0 for gr in GRADES}
+
+        return series, heatmap
+
+    def project(agencies, attr_rate_pct, hire_rate_pct, freeze_on, freeze_start, freeze_months, horizon):
+        """Convenience wrapper that returns only the month-by-month series."""
+        series, _ = project_heatmap(agencies, attr_rate_pct, hire_rate_pct, freeze_on, freeze_start, freeze_months, horizon)
+        return series
 
     # ─── Topbar ────────────────────────────────────────────────
     st.markdown(
@@ -529,10 +705,12 @@ def page_workforce_planning():
     st.markdown("---")
 
     # ─── Persistent scenario state ─────────────────────────────
+    base_attr_pct = round(BASE_ATTRITION_RATE * 100, 2)  # e.g. 0.44
+    base_hire_pct = round(BASE_HIRE_RATE * 100, 2)        # e.g. 1.24
     if "wp_sc_A" not in st.session_state:
-        st.session_state.wp_sc_A = {"attrD": 0, "hireD": 0, "freezeOn": False, "freezeMo": 3}
+        st.session_state.wp_sc_A = {"attrRate": base_attr_pct, "hireRate": base_hire_pct, "freezeOn": False, "freezeStart": 1, "freezeMo": 3}
     if "wp_sc_B" not in st.session_state:
-        st.session_state.wp_sc_B = {"attrD": 40, "hireD": 0, "freezeOn": True, "freezeMo": 6}
+        st.session_state.wp_sc_B = {"attrRate": base_attr_pct, "hireRate": base_hire_pct, "freezeOn": False, "freezeStart": 1, "freezeMo": 3}
 
     # ─── Sidebar Controls ──────────────────────────────────────
     with st.sidebar:
@@ -568,14 +746,29 @@ def page_workforce_planning():
         sc_key = "wp_sc_A" if scenario == "Scenario A" else "wp_sc_B"
 
         st.markdown("**What-If Controls**")
+        # Always show the base rates for reference
+        st.markdown(
+            f'<div style="font-size:0.75rem;color:#777;margin-bottom:8px;">'
+            f'Base attrition rate: <b style="color:#333">{base_attr_pct:.2f}%</b> /mo<br>'
+            f'Base hire rate: <b style="color:#333">{base_hire_pct:.2f}%</b> /mo</div>',
+            unsafe_allow_html=True,
+        )
         if is_base:
-            st.caption("ℹ️ Switch to Scenario A or B to adjust sliders.")
+            st.caption("ℹ️ Switch to Scenario A or B to adjust rates.")
         else:
             stored = st.session_state[sc_key]
-            new_attr = st.slider("Δ Attrition %", min_value=0, max_value=200, value=stored["attrD"], key=f"wp_sl_attr_{sc_key}")
-            new_hire = st.slider("Δ Hiring %", min_value=0, max_value=200, value=stored["hireD"], key=f"wp_sl_hire_{sc_key}")
-            st.session_state[sc_key]["attrD"] = new_attr
-            st.session_state[sc_key]["hireD"] = new_hire
+            new_attr = st.slider(
+                "Monthly Attrition Rate (%)", min_value=0.0, max_value=5.0,
+                value=float(stored["attrRate"]), step=0.01, format="%.2f",
+                key=f"wp_sl_attr_{sc_key}",
+            )
+            new_hire = st.slider(
+                "Monthly Hire Rate (%)", min_value=0.0, max_value=5.0,
+                value=float(stored["hireRate"]), step=0.01, format="%.2f",
+                key=f"wp_sl_hire_{sc_key}",
+            )
+            st.session_state[sc_key]["attrRate"] = new_attr
+            st.session_state[sc_key]["hireRate"] = new_hire
 
         st.markdown("---")
         st.markdown("**Hiring Freeze**")
@@ -584,8 +777,13 @@ def page_workforce_planning():
         else:
             stored = st.session_state[sc_key]
             new_freeze = st.toggle("Enable hiring freeze", value=stored["freezeOn"], key=f"wp_freeze_toggle_{sc_key}")
-            new_freeze_mo = st.number_input("Freeze duration (months)", min_value=1, max_value=24, value=stored["freezeMo"], disabled=not new_freeze, key=f"wp_freeze_mo_{sc_key}")
+            new_freeze_start = st.number_input("Start month", min_value=1, max_value=24, value=stored["freezeStart"], disabled=not new_freeze, key=f"wp_freeze_start_{sc_key}")
+            new_freeze_mo = st.number_input("Duration (months)", min_value=1, max_value=24, value=stored["freezeMo"], disabled=not new_freeze, key=f"wp_freeze_mo_{sc_key}")
+            if new_freeze:
+                freeze_end = new_freeze_start + new_freeze_mo - 1
+                st.caption(f"Freeze: M{new_freeze_start} – M{freeze_end}")
             st.session_state[sc_key]["freezeOn"] = new_freeze
+            st.session_state[sc_key]["freezeStart"] = new_freeze_start
             st.session_state[sc_key]["freezeMo"] = new_freeze_mo
 
         st.markdown("---")
@@ -606,13 +804,13 @@ def page_workforce_planning():
     sA = st.session_state.wp_sc_A
     sB = st.session_state.wp_sc_B
 
-    base_series = project(sel_agencies, 0, 0, False, 0, horizon)
-    sc_a_series = project(sel_agencies, sA["attrD"], sA["hireD"], sA["freezeOn"], sA["freezeMo"], horizon)
-    sc_b_series = project(sel_agencies, sB["attrD"], sB["hireD"], sB["freezeOn"], sB["freezeMo"], horizon)
+    base_series = project(sel_agencies, base_attr_pct, base_hire_pct, False, 1, 0, horizon)
+    sc_a_series = project(sel_agencies, sA["attrRate"], sA["hireRate"], sA["freezeOn"], sA["freezeStart"], sA["freezeMo"], horizon)
+    sc_b_series = project(sel_agencies, sB["attrRate"], sB["hireRate"], sB["freezeOn"], sB["freezeStart"], sB["freezeMo"], horizon)
 
     if scenario == "Base":
         active_series = base_series
-        active_params = {"attrD": 0, "hireD": 0, "freezeOn": False, "freezeMo": 0}
+        active_params = {"attrRate": base_attr_pct, "hireRate": base_hire_pct, "freezeOn": False, "freezeStart": 1, "freezeMo": 0}
     elif scenario == "Scenario A":
         active_series = sc_a_series
         active_params = dict(sA)
@@ -621,18 +819,17 @@ def page_workforce_planning():
         active_params = dict(sB)
 
     # ─── Live Stats ────────────────────────────────────────────
-    current_hc = ag_hc(sel_agencies)
-    final_base = base_series[-1]["hc"]
+    current_hc = active_series[0]["hc"]  # Use M0 from the projection (same source as chart)
     final_active = active_series[-1]["hc"]
     total_exits_stat = sum(d["e"] for d in active_series)
     total_hires_stat = sum(d["h"] for d in active_series)
-    net_change = final_active - final_base
+    net_change = final_active - current_hc  # Projected end vs starting headcount
     agency_label = "All Agencies" if len(sel_agencies) == len(AGENCIES) else ", ".join(sel_agencies)
 
     stat_cols = st.columns(6)
     stat_data = [
         ("Agency", agency_label, COL_BASE),
-        ("Current HC", f"{current_hc:,}", COL_TEXT),
+        (f"Current HC (as of {as_of_label})", f"{current_hc:,}", COL_TEXT),
         (f"Projected ({horizon}mo)", f"{final_active:,}", COL_TEXT),
         ("Total Hires", f"{total_hires_stat:,}", COL_GREEN),
         ("Total Exits", f"{total_exits_stat:,}", COL_ROSE),
@@ -650,7 +847,7 @@ def page_workforce_planning():
         '</div></div></div>', unsafe_allow_html=True,
     )
 
-    base_months = [d["m"] for d in base_series]
+    base_months = [f"M{d['m']}" for d in base_series]
     base_hcs = [d["hc"] for d in base_series]
     sca_hcs = [d["hc"] for d in sc_a_series]
     scb_hcs = [d["hc"] for d in sc_b_series]
@@ -660,43 +857,57 @@ def page_workforce_planning():
     y_pad = max((y_max - y_min) * 0.08, 10)
 
     fig_proj = go.Figure()
-    fig_proj.add_trace(go.Scatter(x=base_months, y=base_hcs, name=f"Base: {base_series[-1]['hc']:,}", mode="lines+markers", line=dict(color=COL_BASE, width=2.5), marker=dict(size=4, color=COL_BASE)))
-    fig_proj.add_trace(go.Scatter(x=base_months, y=sca_hcs, name=f"Sc.A: {sc_a_series[-1]['hc']:,}", mode="lines", line=dict(color=COL_SCA, width=2.5, dash="dash")))
-    fig_proj.add_trace(go.Scatter(x=base_months, y=scb_hcs, name=f"Sc.B: {sc_b_series[-1]['hc']:,}", mode="lines", line=dict(color=COL_SCB, width=2.5, dash="dot")))
+    fig_proj.add_trace(go.Scatter(x=base_months, y=base_hcs, name=f"Base: {base_series[-1]['hc']:,}", mode="lines+markers", line=dict(color=COL_BASE, width=2.5), marker=dict(size=4, color=COL_BASE), hovertemplate="Base: %{y:,}<extra></extra>"))
+    fig_proj.add_trace(go.Scatter(x=base_months, y=sca_hcs, name=f"Sc.A: {sc_a_series[-1]['hc']:,}", mode="lines+markers", line=dict(color=COL_SCA, width=2.5, dash="dash"), marker=dict(size=4, color=COL_SCA), hovertemplate="Sc.A: %{y:,}<extra></extra>"))
+    fig_proj.add_trace(go.Scatter(x=base_months, y=scb_hcs, name=f"Sc.B: {sc_b_series[-1]['hc']:,}", mode="lines+markers", line=dict(color=COL_SCB, width=2.5, dash="dot"), marker=dict(size=4, color=COL_SCB), hovertemplate="Sc.B: %{y:,}<extra></extra>"))
 
     fig_proj.update_layout(
-        xaxis=dict(title="Month", tickmode="array",
-                   tickvals=list(range(0, horizon + 1, 3 if horizon > 12 else 1)),
-                   ticktext=[f"M{m}" for m in range(0, horizon + 1, 3 if horizon > 12 else 1)],
+        xaxis=dict(title="Month",
                    gridcolor=COL_BORDER, zerolinecolor=COL_BORDER, color=COL_DIM),
         yaxis=dict(title="Headcount", gridcolor=COL_BORDER, zerolinecolor=COL_BORDER, color=COL_DIM, range=[max(0, y_min - y_pad), y_max + y_pad]),
         legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="center", x=0.5, font=dict(color=COL_DIM)),
         height=320, margin=dict(l=60, r=30, t=40, b=50),
         plot_bgcolor=COL_SURFACE, paper_bgcolor=COL_SURFACE, font=dict(color=COL_DIM), hovermode="x unified",
     )
+
+    # Add freeze period shading for active scenario
+    if active_params["freezeOn"] and active_params["freezeMo"] > 0:
+        f_start = active_params["freezeStart"]
+        f_end = f_start + active_params["freezeMo"] - 1
+        # Clamp to horizon
+        f_start_clamped = max(0, f_start - 1)  # x-axis is 0-indexed categories
+        f_end_clamped = min(len(base_months) - 1, f_end)
+        fig_proj.add_vrect(
+            x0=f"M{f_start}", x1=f"M{min(f_end, horizon)}",
+            fillcolor="rgba(255,127,14,0.1)", line_width=0,
+            annotation_text="Hiring Freeze", annotation_position="top left",
+            annotation=dict(font_size=10, font_color="#ff7f0e"),
+        )
+
     st.plotly_chart(fig_proj, use_container_width=True)
 
     # ─── Chart 2: Waterfall ────────────────────────────────────
     st.markdown(
         '<div class="chart-card"><div class="chart-card-head"><div>'
-        '<h3>Driver Bridge — Scenario vs Base</h3><div class="sub">Contribution of Hires & Exits to active scenario delta</div>'
+        '<h3>Driver Bridge</h3><div class="sub">Headcount movement from current to projected</div>'
         '</div></div></div>', unsafe_allow_html=True,
     )
 
-    base_end = base_series[-1]["hc"]; act_end = active_series[-1]["hc"]
-    delta_hires = sum(d["h"] for d in active_series) - sum(d["h"] for d in base_series)
-    delta_exits = -(sum(d["e"] for d in active_series) - sum(d["e"] for d in base_series))
+    wf_start = current_hc
+    wf_hires = total_hires_stat
+    wf_exits = total_exits_stat
+    wf_end = final_active
 
-    wf_labels = ["Base", "Δ Hires", "Δ Exits", "Scenario"]
-    wf_bases = [0, base_end, base_end + delta_hires, 0]
-    wf_values = [base_end, delta_hires, delta_exits, act_end]
-    wf_colors = [COL_BASE, COL_GREEN if delta_hires >= 0 else COL_ROSE, COL_GREEN if delta_exits >= 0 else COL_ROSE, COL_GREEN if act_end >= base_end else COL_ROSE]
+    wf_labels = ["Current HC", "Hires", "Exits", "Projected HC"]
+    wf_bases = [0, wf_start, wf_start + wf_hires - wf_exits, 0]
+    wf_values = [wf_start, wf_hires, wf_exits, wf_end]
+    wf_colors = [COL_BASE, COL_GREEN, COL_ROSE, COL_BASE]
 
     fig_wf = go.Figure()
     fig_wf.add_trace(go.Bar(x=wf_labels, y=wf_bases, marker_color="rgba(0,0,0,0)", showlegend=False, hoverinfo="skip"))
     fig_wf.add_trace(go.Bar(
-        x=wf_labels, y=[abs(v) for v in wf_values], marker_color=wf_colors, showlegend=False,
-        text=[f"{base_end:,}", f"{'+' if delta_hires >= 0 else ''}{delta_hires:,}", f"{'+' if delta_exits >= 0 else ''}{delta_exits:,}", f"{act_end:,}"],
+        x=wf_labels, y=wf_values, marker_color=wf_colors, showlegend=False,
+        text=[f"{wf_start:,}", f"+{wf_hires:,}", f"-{wf_exits:,}", f"{wf_end:,}"],
         textposition="outside", textfont=dict(color="#333", size=11),
     ))
     fig_wf.update_layout(
@@ -714,7 +925,7 @@ def page_workforce_planning():
         '</div></div></div>', unsafe_allow_html=True,
     )
 
-    hm_data = project_heatmap(active_params["attrD"], active_params["hireD"], active_params["freezeOn"], active_params["freezeMo"], horizon)
+    _, hm_data = project_heatmap(sel_agencies, active_params["attrRate"], active_params["hireRate"], active_params["freezeOn"], active_params["freezeStart"], active_params["freezeMo"], horizon)
 
     html = '<table class="hm-table"><thead><tr><th class="rh">Agency \\ Grade</th>'
     for g in GRADES:
