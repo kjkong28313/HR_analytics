@@ -96,7 +96,7 @@ def _query(cursor, table):
     return pd.DataFrame(cursor.fetchall(), columns=[d[0] for d in cursor.description])
 
 
-@st.cache_data(ttl=600)
+@st.cache_data(ttl=60)
 def load_all_data():
     with sql.connect(
         server_hostname=DATABRICKS_HOST,
@@ -204,6 +204,8 @@ def get_last_month(year):
     For completed years this returns 12 (December).
     For partial years (e.g. 2026 with data only through Feb) this returns 2.
     """
+    if year is None:
+        return 12
     yr_start = pd.Timestamp(year, 1, 1)
     yr_end = pd.Timestamp(year, 12, 31)
     all_dates_in_year = pd.concat([
@@ -255,6 +257,9 @@ def page_hr_dashboard():
         hires["hire_date"], transfers["transfer_date"],
     ])
     YEARS = sorted(all_dates.dt.year.dropna().unique().astype(int))
+    if not YEARS:
+        st.warning("No data found in the database. Please check your tables.")
+        st.stop()
 
     SET2 = ["#4e79a7", "#f28e2b", "#e15759", "#76b7b2",
             "#59a14f", "#edc948", "#b07aa1", "#ff9da7"]
@@ -297,6 +302,10 @@ def page_hr_dashboard():
             sel_grades = [g for g in sel_grade_raw if g != ALL_LABEL]
 
         sel_year = st.selectbox("Year", options=YEARS, index=len(YEARS) - 1, key="hr_year")
+
+    if sel_year is None:
+        st.warning("No year data available. Please check your database tables.")
+        st.stop()
 
     # ─── Filter Engine ─────────────────────────────────────────
     def filter_data(agencies, grades, year):
@@ -1117,9 +1126,13 @@ with st.sidebar:
         f"Signed in as <b style='color:#333'>{st.session_state.get('current_user','')}</b></div>",
         unsafe_allow_html=True,
     )
+    if st.button("🔄 Refresh Data", use_container_width=True):
+        st.cache_data.clear()
+        st.rerun()
     if st.button("Sign Out", use_container_width=True):
         st.session_state["authenticated"] = False
         st.session_state["current_user"]  = ""
+        st.cache_data.clear()
         st.rerun()
 
 # Run selected page
