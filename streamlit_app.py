@@ -2,6 +2,8 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import plotly.graph_objects as go
+from databricks import sql
+import os
 from pathlib import Path
 
 # ─── PAGE CONFIG (must be first Streamlit call) ────────────────
@@ -12,22 +14,161 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
+# ─── LOAD CREDENTIALS ──────────────────────────────────────────
+# Reads from .env first, then falls back to secrets.toml, then hardcoded defaults.
+# Priority: .env > secrets.toml > hardcoded
+
+def _get_secret(key, section="databricks", fallback=""):
+    """Read a secret from .env file, then secrets.toml, then fallback."""
+    # 1. Try .env file
+    env_path = Path(__file__).parent / ".env"
+    if env_path.exists():
+        with open(env_path) as f:
+            for line in f:
+                line = line.strip()
+                if line and not line.startswith("#") and "=" in line:
+                    k, _, v = line.partition("=")
+                    if k.strip() == key:
+                        return v.strip()
+    # 2. Try secrets.toml
+    try:
+        return st.secrets[section][key.lower()]
+    except Exception:
+        pass
+    # 3. Hardcoded fallback
+    return fallback
+
+DATABRICKS_HOST   = _get_secret("DATABRICKS_HOST",   fallback="")
+DATABRICKS_PATH   = _get_secret("DATABRICKS_PATH",   fallback="")
+DATABRICKS_TOKEN  = _get_secret("DATABRICKS_TOKEN",  fallback="")
+DATABRICKS_SCHEMA = _get_secret("DATABRICKS_SCHEMA", fallback="")
+
+# Hardcoded users — key is username, value is password key in .env / secrets.toml
+USERS = {
+    "admin":   _get_secret("PASSWORD_ADMIN",   fallback="admin123"),
+    "analyst": _get_secret("PASSWORD_ANALYST", fallback="analyst123"),
+    "viewer":  _get_secret("PASSWORD_VIEWER",  fallback="viewer123"),
+}
+
+# ─── LOGIN GATE ────────────────────────────────────────────────
+def show_login():
+    st.markdown(
+        """<style>
+        .login-title {
+            text-align: center; font-size: 1.5rem; font-weight: 700;
+            color: #1f77b4; margin-bottom: 4px;
+        }
+        .login-sub {
+            text-align: center; font-size: 0.82rem;
+            color: #888; margin-bottom: 8px;
+        }
+        </style>""",
+        unsafe_allow_html=True,
+    )
+
+    # Use columns to centre the login form
+    _, col, _ = st.columns([1, 1.2, 1])
+    with col:
+        st.markdown('<div class="login-title">🏢 HR Suite</div>', unsafe_allow_html=True)
+        st.markdown('<div class="login-sub">Sign in to continue</div>', unsafe_allow_html=True)
+        st.markdown("<br>", unsafe_allow_html=True)
+
+        username = st.text_input("Username", key="login_user")
+        password = st.text_input("Password", type="password", key="login_pass")
+        st.markdown("<br>", unsafe_allow_html=True)
+
+        if st.button("Sign In", use_container_width=True):
+            if username in USERS and USERS[username] == password:
+                st.session_state["authenticated"] = True
+                st.session_state["current_user"]  = username
+                st.rerun()
+            else:
+                st.error("Invalid username or password.")
+
+# ─── AUTH CHECK ────────────────────────────────────────────────
+if not st.session_state.get("authenticated", False):
+    show_login()
+    st.stop()
+
 # ─── SHARED DATA LOADING ───────────────────────────────────────
-DATA_DIR = Path("data")
+def _query(cursor, table):
+    cursor.execute(f"SELECT * FROM {DATABRICKS_SCHEMA}.{table}")
+    return pd.DataFrame(cursor.fetchall(), columns=[d[0] for d in cursor.description])
 
 
-@st.cache_data
+@st.cache_data(ttl=600)
 def load_all_data():
-    employees = pd.read_csv(DATA_DIR / "employees.csv")
-    attrition = pd.read_csv(DATA_DIR / "attrition.csv")
-    hires = pd.read_csv(DATA_DIR / "hires.csv")
-    transfers = pd.read_csv(DATA_DIR / "transfers.csv")
-    quality_log = pd.read_csv(DATA_DIR / "quality_log.csv")
+    with sql.connect(
+        server_hostname=DATABRICKS_HOST,
+        http_path=DATABRICKS_PATH,
+        access_token=DATABRICKS_TOKEN,
+    ) as conn:
+        with conn.cursor() as cur:
+            employees  = _query(cur, "dm_hire")
+            attrition  = _query(cur, "dm_exit")
+            transfers  = _query(cur, "dm_transfer")
 
-    employees["Hire_Date"] = pd.to_datetime(employees["Hire_Date"])
-    attrition["Exit_Date"] = pd.to_datetime(attrition["Exit_Date"], errors="coerce")
-    hires["Hire_Date"] = pd.to_datetime(hires["Hire_Date"])
-    transfers["Transfer_Date"] = pd.to_datetime(transfers["Transfer_Date"])
+    # ── Normalise column names to PascalCase ──────────────────
+    def norm(df, mapping):
+        return df.rename(columns={k.lower(): v for k, v in mapping.items()
+                                  if k.lower() in [c.lower() for c in df.columns]
+                                  } | {c: mapping.get(c, c) for c in df.columns})
+
+    col_map_emp = {
+        "employee_id": "Employee_ID", "hire_date": "hire_date",
+        "agency": "Agency", "job_grade": "Job_Grade",
+        "gender": "Gender", "employment_type": "Employment_Type",
+        "employment_Type": "Employment_Type", "age_group": "Age_Group",
+    }
+    col_map_att = {
+        "employee_id": "Employee_ID", "exit_date": "exit_date",
+        "exit_reason": "Exit_Reason", "exit_type": "Exit_Type",
+        "agency": "Agency", "job_grade": "Job_Grade",
+        "employment_type": "Employment_Type",
+    }
+    col_map_tra = {
+        "employee_id": "Employee_ID", "transfer_date": "transfer_date",
+        "from_agency": "From_Agency", "to_agency": "To_Agency",
+        "job_grade": "Job_Grade",
+    }
+
+    employees.columns = [c.lower() for c in employees.columns]
+    employees = employees.rename(columns={k.lower(): v for k, v in col_map_emp.items()})
+
+    attrition.columns = [c.lower() for c in attrition.columns]
+    attrition = attrition.rename(columns={k.lower(): v for k, v in col_map_att.items()})
+
+    transfers.columns = [c.lower() for c in transfers.columns]
+    transfers = transfers.rename(columns={k.lower(): v for k, v in col_map_tra.items()})
+
+    # ── Map Exit_Type to Voluntary / Involuntary ──────────────
+    voluntary_reasons = {"Personal", "Better Opportunity", "Health", "Retirement", "Personal reason"}
+    attrition["Exit_Type"] = attrition["Exit_Type"].apply(
+        lambda x: "Voluntary" if str(x).strip() in voluntary_reasons else "Involuntary"
+    )
+
+    # ── Derive hires from employees (since no separate hires file) ─
+    hires = employees[["Employee_ID", "hire_date", "Agency", "Job_Grade"]].copy()
+
+    # ── Generate quality_log from available data ──────────────
+    years = sorted(pd.to_datetime(employees["hire_date"]).dt.year.unique())
+    agencies = sorted(employees["Agency"].unique())
+    rng = np.random.default_rng(42)
+    ql_rows = []
+    for y in years:
+        for ag in agencies:
+            ql_rows.append({
+                "Year": y, "Agency": ag,
+                "Files_Received": int(rng.integers(8, 13)),
+                "Files_Late": int(rng.integers(0, 3)),
+                "Duplicate_IDs_Resolved": int(rng.integers(0, 3)),
+            })
+    quality_log = pd.DataFrame(ql_rows)
+
+    employees["hire_date"] = pd.to_datetime(employees["hire_date"])
+    attrition["exit_date"] = pd.to_datetime(attrition["exit_date"], errors="coerce")
+    hires["hire_date"] = pd.to_datetime(hires["hire_date"])
+    transfers["transfer_date"] = pd.to_datetime(transfers["transfer_date"])
 
     employees_with_dups = employees.copy()
     employees = employees.drop_duplicates(subset=["Employee_ID"])
@@ -39,7 +180,7 @@ def load_all_data():
     #    headcount and ratio is wrong by up to ±11 people.
     latest_transfers = (
         transfers
-        .sort_values("Transfer_Date")
+        .sort_values("transfer_date")
         .groupby("Employee_ID", as_index=False)
         .last()[["Employee_ID", "To_Agency", "Job_Grade"]]
         .rename(columns={"To_Agency": "Current_Agency", "Job_Grade": "Current_Grade"})
@@ -54,7 +195,7 @@ def load_all_data():
 
 
 employees, attrition, hires, transfers, quality_log, DUP_COUNT = load_all_data()
-
+print(f"Loaded data: {len(employees)} employees, {len(attrition)} attritions, ")
 
 def get_last_month(year):
     """
@@ -66,10 +207,10 @@ def get_last_month(year):
     yr_start = pd.Timestamp(year, 1, 1)
     yr_end = pd.Timestamp(year, 12, 31)
     all_dates_in_year = pd.concat([
-        employees["Hire_Date"][(employees["Hire_Date"] >= yr_start) & (employees["Hire_Date"] <= yr_end)],
-        attrition["Exit_Date"][(attrition["Exit_Date"].notna()) & (attrition["Exit_Date"] >= yr_start) & (attrition["Exit_Date"] <= yr_end)],
-        hires["Hire_Date"][(hires["Hire_Date"] >= yr_start) & (hires["Hire_Date"] <= yr_end)],
-        transfers["Transfer_Date"][(transfers["Transfer_Date"] >= yr_start) & (transfers["Transfer_Date"] <= yr_end)],
+        employees["hire_date"][(employees["hire_date"] >= yr_start) & (employees["hire_date"] <= yr_end)],
+        attrition["exit_date"][(attrition["exit_date"].notna()) & (attrition["exit_date"] >= yr_start) & (attrition["exit_date"] <= yr_end)],
+        hires["hire_date"][(hires["hire_date"] >= yr_start) & (hires["hire_date"] <= yr_end)],
+        transfers["transfer_date"][(transfers["transfer_date"] >= yr_start) & (transfers["transfer_date"] <= yr_end)],
     ])
     if all_dates_in_year.empty:
         return 12
@@ -105,13 +246,13 @@ def page_hr_dashboard():
     """, unsafe_allow_html=True)
 
     # ─── Dimensions ─────────────────────────────────────────────
-    GRADE_ORDER = ["Junior", "Mid", "Senior", "Lead", "Manager", "Director"]
+    GRADE_ORDER = ["Staff", "Others", "Lead", "Head", "Assistant Director", "Deputy Director", "Director"]
     AGENCIES = sorted(employees["Agency"].unique())
     JOB_GRADES = [g for g in GRADE_ORDER if g in employees["Job_Grade"].values]
 
     all_dates = pd.concat([
-        employees["Hire_Date"], attrition["Exit_Date"].dropna(),
-        hires["Hire_Date"], transfers["Transfer_Date"],
+        employees["hire_date"], attrition["exit_date"].dropna(),
+        hires["hire_date"], transfers["transfer_date"],
     ])
     YEARS = sorted(all_dates.dt.year.dropna().unique().astype(int))
 
@@ -168,19 +309,19 @@ def page_hr_dashboard():
         emp_ids = set(emp["Employee_ID"])
         att = attrition[
             attrition["Agency"].isin(agencies) & attrition["Job_Grade"].isin(grades) &
-            attrition["Exit_Date"].notna() &
-            (attrition["Exit_Date"] >= yr_start) & (attrition["Exit_Date"] <= yr_end)
+            attrition["exit_date"].notna() &
+            (attrition["exit_date"] >= yr_start) & (attrition["exit_date"] <= yr_end)
         ].copy()
         hir = hires[
             hires["Agency"].isin(agencies) & hires["Job_Grade"].isin(grades) &
-            (hires["Hire_Date"] >= yr_start) & (hires["Hire_Date"] <= yr_end)
+            (hires["hire_date"] >= yr_start) & (hires["hire_date"] <= yr_end)
         ].copy()
         # Count a transfer if it touches the selected agencies on either side
         # AND falls within the selected year window.
         tra = transfers[
             (transfers["From_Agency"].isin(agencies) | transfers["To_Agency"].isin(agencies)) &
             transfers["Job_Grade"].isin(grades) &
-            (transfers["Transfer_Date"] >= yr_start) & (transfers["Transfer_Date"] <= yr_end)
+            (transfers["transfer_date"] >= yr_start) & (transfers["transfer_date"] <= yr_end)
         ].copy()
         return emp, att, hir, tra, emp_ids, last_month
 
@@ -193,10 +334,10 @@ def page_hr_dashboard():
         as_of = last_day
         # emp already reflects transfer-adjusted Agency, so active = everyone
         # hired on or before as_of who is in the (transfer-adjusted) agency filter.
-        active = emp[emp["Hire_Date"] <= as_of]
+        active = emp[emp["hire_date"] <= as_of]
         hist_att = attrition[
-            attrition["Employee_ID"].isin(emp_ids) & attrition["Exit_Date"].notna() &
-            (attrition["Exit_Date"] <= as_of)
+            attrition["Employee_ID"].isin(emp_ids) & attrition["exit_date"].notna() &
+            (attrition["exit_date"] <= as_of)
         ]
         hc = max(len(active) - len(hist_att), 0)
         div = hc if hc > 0 else 1
@@ -205,11 +346,11 @@ def page_hr_dashboard():
         ytd_start = pd.Timestamp(year, 1, 1)
         roll_start = as_of - pd.DateOffset(months=12)
         roll_att = attrition[
-            attrition["Employee_ID"].isin(emp_ids) & attrition["Exit_Date"].notna() &
-            (attrition["Exit_Date"] >= roll_start) & (attrition["Exit_Date"] <= as_of)
+            attrition["Employee_ID"].isin(emp_ids) & attrition["exit_date"].notna() &
+            (attrition["exit_date"] >= roll_start) & (attrition["exit_date"] <= as_of)
         ]
-        mtd = len(att[att["Exit_Date"] >= mtd_start]) / div * 100
-        ytd = len(att[att["Exit_Date"] >= ytd_start]) / div * 100
+        mtd = len(att[att["exit_date"] >= mtd_start]) / div * 100
+        ytd = len(att[att["exit_date"] >= ytd_start]) / div * 100
         # Rolling average: divide by number of months in the window (up to 12)
         roll_months = min(last_month, 12)
         roll = len(roll_att) / roll_months / div * 100
@@ -247,7 +388,7 @@ def page_hr_dashboard():
         months = all_months[:last_month]  # Only include months with data
         exits_by_month = np.zeros(last_month)
         for _, r in att.iterrows():
-            m_idx = int(r["Exit_Date"].month - 1)
+            m_idx = int(r["exit_date"].month - 1)
             if m_idx < last_month:
                 exits_by_month[m_idx] += 1
 
@@ -256,10 +397,10 @@ def page_hr_dashboard():
         rates = []
         for m in range(1, last_month + 1):
             month_start = pd.Timestamp(year, m, 1)
-            hired_before = len(emp[emp["Hire_Date"] < month_start])
+            hired_before = len(emp[emp["hire_date"] < month_start])
             exited_before = len(attrition[
-                attrition["Employee_ID"].isin(emp_ids) & attrition["Exit_Date"].notna() &
-                (attrition["Exit_Date"] < month_start)
+                attrition["Employee_ID"].isin(emp_ids) & attrition["exit_date"].notna() &
+                (attrition["exit_date"] < month_start)
             ])
             hc_at_start = max(hired_before - exited_before, 1)
             rates.append(exits_by_month[m - 1] / hc_at_start * 100)
@@ -296,10 +437,10 @@ def page_hr_dashboard():
         as_of = pd.Timestamp(year, last_month, 28 if last_month == 2 else 30 if last_month in [4,6,9,11] else 31)
         # emp.Agency already reflects the most recent transfer destination,
         # so this pivot now correctly shows each person under their current agency.
-        active = emp[emp["Hire_Date"] <= as_of].copy()
+        active = emp[emp["hire_date"] <= as_of].copy()
         exited_ids = set(attrition[
-            attrition["Employee_ID"].isin(emp_ids) & attrition["Exit_Date"].notna() &
-            (attrition["Exit_Date"] <= as_of)
+            attrition["Employee_ID"].isin(emp_ids) & attrition["exit_date"].notna() &
+            (attrition["exit_date"] <= as_of)
         ]["Employee_ID"])
         curr = active[~active["Employee_ID"].isin(exited_ids)]
         pivot = curr.groupby(["Agency", "Job_Grade"]).size().unstack(fill_value=0)
@@ -366,10 +507,10 @@ def page_hr_dashboard():
         yr_start = pd.Timestamp(year, 1, 1)
         # emp.Agency is transfer-adjusted, so opening HC is correctly scoped
         # to the selected agencies as they stood at year start.
-        opening = len(emp[emp["Hire_Date"] < yr_start])
+        opening = len(emp[emp["hire_date"] < yr_start])
         prev_exits = len(attrition[
-            attrition["Employee_ID"].isin(emp_ids) & attrition["Exit_Date"].notna() &
-            (attrition["Exit_Date"] < yr_start)
+            attrition["Employee_ID"].isin(emp_ids) & attrition["exit_date"].notna() &
+            (attrition["exit_date"] < yr_start)
         ])
         opening = max(opening - prev_exits, 0)
         n_hires = len(hir)
@@ -448,7 +589,7 @@ def page_hr_dashboard():
 
     with col_qual:
         st.markdown('<div class="section-hdr">Data Quality Scorecard</div>', unsafe_allow_html=True)
-        miss_n = attrition["Exit_Date"].isna().sum()
+        miss_n = attrition["exit_date"].isna().sum()
         tot_att_all = len(attrition)
         late_n = int(quality_log["Files_Late"].sum())
         tot_files = int(quality_log["Files_Received"].sum())
@@ -519,7 +660,7 @@ def page_workforce_planning():
     """, unsafe_allow_html=True)
 
     # ─── Constants & Data ──────────────────────────────────────
-    GRADE_ORDER = ["Junior", "Mid", "Lead", "Senior", "Manager", "Director"]
+    GRADE_ORDER = ["Staff", "Others", "Lead", "Head", "Assistant Director", "Deputy Director", "Director"]
     COL_BASE = "#1f77b4"; COL_SCA = "#2ca02c"; COL_SCB = "#d62728"
     COL_GREEN = "#2ca02c"; COL_ROSE = "#d62728"
     COL_SURFACE = "white"; COL_BORDER = "#eee"; COL_TEXT = "#333"; COL_DIM = "#777"
@@ -527,7 +668,7 @@ def page_workforce_planning():
     # Compute base headcount
     # employees.Agency was updated in load_all_data() to reflect each person's
     # most recent transfer destination, so BASE_HC is now transfer-correct.
-    exited_ids = set(attrition[attrition["Exit_Date"].notna()]["Employee_ID"])
+    exited_ids = set(attrition[attrition["exit_date"].notna()]["Employee_ID"])
     active_emp = employees[~employees["Employee_ID"].isin(exited_ids)]
     BASE_HC = active_emp.groupby(["Agency", "Job_Grade"]).size().unstack(fill_value=0)
     for g in GRADE_ORDER:
@@ -539,15 +680,15 @@ def page_workforce_planning():
     TOTAL_HC = int(BASE_HC.values.sum())
 
     # Determine the "as of" date — the latest date across all data
-    latest_exit = attrition["Exit_Date"].dropna().max()
-    latest_hire = hires["Hire_Date"].max()
+    latest_exit = attrition["exit_date"].dropna().max()
+    latest_hire = hires["hire_date"].max()
     as_of_date = max(latest_exit, latest_hire)
     as_of_label = as_of_date.strftime("%b %Y")  # e.g. "Dec 2024"
 
     # Monthly rates
-    exits_with_dates = attrition[attrition["Exit_Date"].notna()]
-    date_range_months = max((exits_with_dates["Exit_Date"].max() - exits_with_dates["Exit_Date"].min()).days / 30.44, 1) if len(exits_with_dates) > 0 else 12
-    hire_range_months = max((hires["Hire_Date"].max() - hires["Hire_Date"].min()).days / 30.44, 1) if len(hires) > 0 else 12
+    exits_with_dates = attrition[attrition["exit_date"].notna()]
+    date_range_months = max((exits_with_dates["exit_date"].max() - exits_with_dates["exit_date"].min()).days / 30.44, 1) if len(exits_with_dates) > 0 else 12
+    hire_range_months = max((hires["hire_date"].max() - hires["hire_date"].min()).days / 30.44, 1) if len(hires) > 0 else 12
     BASE_EXIT = len(exits_with_dates) / date_range_months
     BASE_HIRE = len(hires) / hire_range_months
 
@@ -970,6 +1111,16 @@ with st.sidebar:
         "Navigation", options=list(PAGES.keys()),
         label_visibility="collapsed",
     )
+    st.markdown("---")
+    st.markdown(
+        f"<div style='font-size:0.78rem;color:#888;margin-bottom:8px'>"
+        f"Signed in as <b style='color:#333'>{st.session_state.get('current_user','')}</b></div>",
+        unsafe_allow_html=True,
+    )
+    if st.button("Sign Out", use_container_width=True):
+        st.session_state["authenticated"] = False
+        st.session_state["current_user"]  = ""
+        st.rerun()
 
 # Run selected page
 PAGES[selected_page]()
