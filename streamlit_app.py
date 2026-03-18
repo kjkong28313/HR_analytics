@@ -256,7 +256,7 @@ def page_hr_dashboard():
         employees["hire_date"], attrition["exit_date"].dropna(),
         hires["hire_date"], transfers["transfer_date"],
     ])
-    YEARS = sorted(all_dates.dt.year.dropna().unique().astype(int))
+    YEARS = sorted(all_dates.dt.year.dropna().unique().astype(int), reverse=True)
     if not YEARS:
         st.warning("No data found in the database. Please check your tables.")
         st.stop()
@@ -301,7 +301,7 @@ def page_hr_dashboard():
         else:
             sel_grades = [g for g in sel_grade_raw if g != ALL_LABEL]
 
-        sel_year = st.selectbox("Year", options=YEARS, index=len(YEARS) - 1, key="hr_year")
+        sel_year = st.selectbox("Year", options=YEARS, index=0, key="hr_year")
 
     if sel_year is None:
         st.warning("No year data available. Please check your database tables.")
