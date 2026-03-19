@@ -91,61 +91,88 @@ if not st.session_state.get("authenticated", False):
     st.stop()
 
 # ─── SHARED DATA LOADING ───────────────────────────────────────
-def _query(cursor, table):
-    cursor.execute(f"SELECT * FROM {DATABRICKS_SCHEMA}.{table}")
+def _query(cursor, sql_str):
+    cursor.execute(sql_str)
     return pd.DataFrame(cursor.fetchall(), columns=[d[0] for d in cursor.description])
 
 
 @st.cache_data(ttl=60)
 def load_all_data():
+    s = DATABRICKS_SCHEMA
     with sql.connect(
         server_hostname=DATABRICKS_HOST,
         http_path=DATABRICKS_PATH,
         access_token=DATABRICKS_TOKEN,
     ) as conn:
         with conn.cursor() as cur:
-            employees  = _query(cur, "dm_hire")
-            attrition  = _query(cur, "dm_exit")
-            transfers  = _query(cur, "dm_transfer")
+            employees = _query(cur, f"""
+                SELECT employee_id, hire_date, agency_name, job_grade_name,
+                       gender, employment_type
+                FROM {s}.fact_hires
+            """)
+            attrition = _query(cur, f"""
+                SELECT employee_id, exit_date, agency_name, job_grade_name,
+                       exit_reason, is_voluntary, employment_type
+                FROM {s}.fact_attritions
+            """)
+            transfers = _query(cur, f"""
+                SELECT employee_id, transfer_date, from_agency_name,
+                       to_agency_name, job_grade_name
+                FROM {s}.fact_transfer_matrix
+            """)
 
-    # ── Normalise column names to PascalCase ──────────────────
-    def norm(df, mapping):
-        return df.rename(columns={k.lower(): v for k, v in mapping.items()
-                                  if k.lower() in [c.lower() for c in df.columns]
-                                  } | {c: mapping.get(c, c) for c in df.columns})
-
-    col_map_emp = {
-        "employee_id": "Employee_ID", "hire_date": "hire_date",
-        "agency": "Agency", "job_grade": "Job_Grade",
-        "gender": "Gender", "employment_type": "Employment_Type",
-        "employment_Type": "Employment_Type", "age_group": "Age_Group",
-    }
-    col_map_att = {
-        "employee_id": "Employee_ID", "exit_date": "exit_date",
-        "exit_reason": "Exit_Reason", "exit_type": "Exit_Type",
-        "agency": "Agency", "job_grade": "Job_Grade",
-        "employment_type": "Employment_Type",
-    }
-    col_map_tra = {
-        "employee_id": "Employee_ID", "transfer_date": "transfer_date",
-        "from_agency": "From_Agency", "to_agency": "To_Agency",
-        "job_grade": "Job_Grade",
-    }
+    # ── Normalise column names to the internal PascalCase contract ────
+    # fact_hires columns:          employee_id, hire_date, agency_name,
+    #                              job_grade_name, gender, employment_type, ...
+    # fact_attritions columns:     employee_id, exit_date, agency_name,
+    #                              job_grade_name, exit_reason, is_voluntary,
+    #                              employment_type, ...
+    # fact_transfer_matrix columns: employee_id, transfer_date,
+    #                              from_agency_name, to_agency_name,
+    #                              job_grade_name, ...
 
     employees.columns = [c.lower() for c in employees.columns]
-    employees = employees.rename(columns={k.lower(): v for k, v in col_map_emp.items()})
+    employees = employees.rename(columns={
+        "employee_id":    "Employee_ID",
+        "hire_date":      "hire_date",
+        "agency_name":    "Agency",
+        "job_grade_name": "Job_Grade",
+        "gender":         "Gender",
+        "employment_type":"Employment_Type",
+    })
 
     attrition.columns = [c.lower() for c in attrition.columns]
-    attrition = attrition.rename(columns={k.lower(): v for k, v in col_map_att.items()})
+    attrition = attrition.rename(columns={
+        "employee_id":    "Employee_ID",
+        "exit_date":      "exit_date",
+        "agency_name":    "Agency",
+        "job_grade_name": "Job_Grade",
+        "exit_reason":    "Exit_Reason",
+        "employment_type":"Employment_Type",
+    })
 
     transfers.columns = [c.lower() for c in transfers.columns]
-    transfers = transfers.rename(columns={k.lower(): v for k, v in col_map_tra.items()})
+    transfers = transfers.rename(columns={
+        "employee_id":       "Employee_ID",
+        "transfer_date":     "transfer_date",
+        "from_agency_name":  "From_Agency",
+        "to_agency_name":    "To_Agency",
+        "job_grade_name":    "Job_Grade",
+    })
 
-    # ── Map Exit_Type to Voluntary / Involuntary ──────────────
-    voluntary_reasons = {"Personal", "Better Opportunity", "Health", "Retirement", "Personal reason"}
-    attrition["Exit_Type"] = attrition["Exit_Type"].apply(
-        lambda x: "Voluntary" if str(x).strip() in voluntary_reasons else "Involuntary"
-    )
+    # ── Derive Exit_Type from is_voluntary flag ───────────────
+    # fact_attritions provides is_voluntary (1 = voluntary, 0 = involuntary)
+    # which replaces the old free-text Exit_Type field.
+    if "is_voluntary" in attrition.columns:
+        attrition["Exit_Type"] = attrition["is_voluntary"].apply(
+            lambda x: "Voluntary" if str(x).strip() in {"1", "True", "true"} else "Involuntary"
+        )
+    else:
+        # Fallback: derive from Exit_Reason text if is_voluntary is absent
+        voluntary_reasons = {"Personal", "Better Opportunity", "Health", "Retirement", "Personal reason"}
+        attrition["Exit_Type"] = attrition.get("Exit_Reason", pd.Series(dtype=str)).apply(
+            lambda x: "Voluntary" if str(x).strip() in voluntary_reasons else "Involuntary"
+        )
 
     # ── Derive hires from employees (since no separate hires file) ─
     hires = employees[["Employee_ID", "hire_date", "Agency", "Job_Grade"]].copy()
