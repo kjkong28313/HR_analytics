@@ -224,6 +224,24 @@ def load_all_data():
 employees, attrition, hires, transfers, quality_log, DUP_COUNT = load_all_data()
 print(f"Loaded data: {len(employees)} employees, {len(attrition)} attritions, ")
 
+# ─── GLOBAL DATA CUTOFF ────────────────────────────────────────
+# Only accept data up to the last day of the previous calendar month.
+# e.g. today = 20 Mar 2026  →  DATA_CUTOFF = 28 Feb 2026
+import calendar as _cal
+_today        = pd.Timestamp.today().normalize()
+_cutoff_month = (_today.month - 1) if _today.month > 1 else 12
+_cutoff_year  = _today.year if _today.month > 1 else _today.year - 1
+DATA_CUTOFF   = pd.Timestamp(_cutoff_year, _cutoff_month,
+                             _cal.monthrange(_cutoff_year, _cutoff_month)[1])
+
+# Trim all four tables to the cutoff at load time.
+# Every downstream calculation is automatically scoped — no further changes needed.
+employees = employees[employees["hire_date"]     <= DATA_CUTOFF].copy()
+attrition = attrition[(attrition["exit_date"].isna()) |
+                      (attrition["exit_date"]    <= DATA_CUTOFF)].copy()
+hires     = hires[hires["hire_date"]             <= DATA_CUTOFF].copy()
+transfers = transfers[transfers["transfer_date"] <= DATA_CUTOFF].copy()
+
 def get_last_month(year):
     """
     Detect the last month that has data for a given year.
@@ -234,7 +252,7 @@ def get_last_month(year):
     if year is None:
         return 12
     yr_start = pd.Timestamp(year, 1, 1)
-    yr_end = pd.Timestamp(year, 12, 31)
+    yr_end   = min(pd.Timestamp(year, 12, 31), DATA_CUTOFF)  # never exceed cutoff
     all_dates_in_year = pd.concat([
         employees["hire_date"][(employees["hire_date"] >= yr_start) & (employees["hire_date"] <= yr_end)],
         attrition["exit_date"][(attrition["exit_date"].notna()) & (attrition["exit_date"] >= yr_start) & (attrition["exit_date"] <= yr_end)],
@@ -539,23 +557,34 @@ def page_hr_dashboard():
             st.info("No exit data for the selected filters.")
 
     # ─── Waterfall | Agency Totals ─────────────────────────────
-    def calc_waterfall(emp, att, hir, tra, emp_ids, year):
+    def calc_waterfall(emp, att, hir, tra, emp_ids, year, last_month):
         yr_start = pd.Timestamp(year, 1, 1)
-        # emp.Agency is transfer-adjusted, so opening HC is correctly scoped
-        # to the selected agencies as they stood at year start.
+        as_of    = pd.Timestamp(year, last_month,
+                                28 if last_month == 2 else
+                                30 if last_month in [4, 6, 9, 11] else 31)
+        as_of    = min(as_of, DATA_CUTOFF)
+
+        # Opening: hired before year start minus those who already exited
         opening = len(emp[emp["hire_date"] < yr_start])
         prev_exits = len(attrition[
             attrition["Employee_ID"].isin(emp_ids) & attrition["exit_date"].notna() &
             (attrition["exit_date"] < yr_start)
         ])
-        opening = max(opening - prev_exits, 0)
-        n_hires = len(hir)
-        n_exits = len(att)
+        opening     = max(opening - prev_exits, 0)
+        n_hires     = len(hir)
+        n_exits     = len(att)
         n_transfers = len(tra)
-        closing = max(opening + n_hires - n_exits, 0)
+
+        # Closing: same logic as Current Headcount KPI so they always match
+        all_active     = emp[emp["hire_date"] <= as_of]
+        all_hist_exits = attrition[
+            attrition["Employee_ID"].isin(emp_ids) & attrition["exit_date"].notna() &
+            (attrition["exit_date"] <= as_of)
+        ]
+        closing = max(len(all_active) - len(all_hist_exits), 0)
         return opening, n_hires, n_exits, n_transfers, closing
 
-    opening, n_hires, n_exits, n_transfers, closing = calc_waterfall(fd_emp, fd_att, fd_hir, fd_tra, fd_emp_ids, sel_year)
+    opening, n_hires, n_exits, n_transfers, closing = calc_waterfall(fd_emp, fd_att, fd_hir, fd_tra, fd_emp_ids, sel_year, last_month)
 
     col_wf, col_ag = st.columns(2)
     with col_wf:
@@ -704,8 +733,14 @@ def page_workforce_planning():
     # Compute base headcount
     # employees.Agency was updated in load_all_data() to reflect each person's
     # most recent transfer destination, so BASE_HC is now transfer-correct.
-    exited_ids = set(attrition[attrition["exit_date"].notna()]["Employee_ID"])
-    active_emp = employees[~employees["Employee_ID"].isin(exited_ids)]
+    exited_ids = set(attrition[
+        attrition["exit_date"].notna() &
+        (attrition["exit_date"] <= DATA_CUTOFF)
+    ]["Employee_ID"])
+    active_emp = employees[
+        (employees["hire_date"] <= DATA_CUTOFF) &
+        ~employees["Employee_ID"].isin(exited_ids)
+    ]
     BASE_HC = active_emp.groupby(["Agency", "Job_Grade"]).size().unstack(fill_value=0)
     for g in GRADE_ORDER:
         if g not in BASE_HC.columns:
@@ -716,17 +751,16 @@ def page_workforce_planning():
     TOTAL_HC = int(BASE_HC.values.sum())
 
     # Determine the "as of" date — the latest date across all data
-    latest_exit = attrition["exit_date"].dropna().max()
-    latest_hire = hires["hire_date"].max()
-    as_of_date = max(latest_exit, latest_hire)
-    as_of_label = as_of_date.strftime("%b %Y")  # e.g. "Dec 2024"
+    as_of_date  = DATA_CUTOFF
+    as_of_label = DATA_CUTOFF.strftime("%b %Y")
 
     # Monthly rates
-    exits_with_dates = attrition[attrition["exit_date"].notna()]
+    exits_with_dates  = attrition[attrition["exit_date"].notna() & (attrition["exit_date"] <= DATA_CUTOFF)]
+    hires_cutoff      = hires[hires["hire_date"] <= DATA_CUTOFF]
     date_range_months = max((exits_with_dates["exit_date"].max() - exits_with_dates["exit_date"].min()).days / 30.44, 1) if len(exits_with_dates) > 0 else 12
-    hire_range_months = max((hires["hire_date"].max() - hires["hire_date"].min()).days / 30.44, 1) if len(hires) > 0 else 12
+    hire_range_months = max((hires_cutoff["hire_date"].max() - hires_cutoff["hire_date"].min()).days / 30.44, 1) if len(hires_cutoff) > 0 else 12
     BASE_EXIT = len(exits_with_dates) / date_range_months
-    BASE_HIRE = len(hires) / hire_range_months
+    BASE_HIRE = len(hires_cutoff) / hire_range_months
 
     # ─── Per-Agency and Per-Grade rate ratios ──────────────────
     # Calculate how each agency/grade deviates from the overall rate.
@@ -739,7 +773,7 @@ def page_workforce_planning():
     # Per-agency headcount and rates
     ag_hc_counts = active_emp.groupby("Agency").size()
     ag_exit_counts = exits_with_dates.groupby("Agency").size()
-    ag_hire_counts = hires.groupby("Agency").size()
+    ag_hire_counts = hires_cutoff.groupby("Agency").size()
 
     AG_ATTR_RATIO = {}  # agency attrition ratio relative to overall
     AG_HIRE_RATIO = {}  # agency hire ratio relative to overall
@@ -753,7 +787,7 @@ def page_workforce_planning():
     # Per-grade headcount and rates
     gr_hc_counts = active_emp.groupby("Job_Grade").size()
     gr_exit_counts = exits_with_dates.groupby("Job_Grade").size()
-    gr_hire_counts = hires.groupby("Job_Grade").size()
+    gr_hire_counts = hires_cutoff.groupby("Job_Grade").size()
 
     GR_ATTR_RATIO = {}  # grade attrition ratio relative to overall
     GR_HIRE_RATIO = {}  # grade hire ratio relative to overall
@@ -990,7 +1024,19 @@ def page_workforce_planning():
         active_params = dict(sB)
 
     # ─── Live Stats ────────────────────────────────────────────
-    current_hc = active_series[0]["hc"]  # Use M0 from the projection (same source as chart)
+    # Derive current_hc the same way as the HR Dashboard KPI card:
+    # all employees (in selected agencies) hired on/before DATA_CUTOFF
+    # minus all who exited on/before DATA_CUTOFF.
+    # This guarantees Planning and Dashboard always show the same number.
+    _plan_emp    = employees[employees["Agency"].isin(sel_agencies)]
+    _plan_ids    = set(_plan_emp["Employee_ID"])
+    _plan_active = _plan_emp[_plan_emp["hire_date"] <= DATA_CUTOFF]
+    _plan_exits  = attrition[
+        attrition["Employee_ID"].isin(_plan_ids) &
+        attrition["exit_date"].notna() &
+        (attrition["exit_date"] <= DATA_CUTOFF)
+    ]
+    current_hc = max(len(_plan_active) - len(_plan_exits), 0)
     final_active = active_series[-1]["hc"]
     total_exits_stat = sum(d["e"] for d in active_series)
     total_hires_stat = sum(d["h"] for d in active_series)
