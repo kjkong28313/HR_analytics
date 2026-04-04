@@ -2,9 +2,15 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import plotly.graph_objects as go
-from databricks import sql
+# from databricks import sql  # ── COMMENTED OUT: replaced by CSV file loading
 import os
 from pathlib import Path
+
+# ─── CSV DATA SOURCE ───────────────────────────────────────────
+# Reads the three fact tables from CSV files in the ./data folder.
+# To switch back to Databricks, comment this block out and restore
+# the Databricks connection block inside load_all_data().
+DATA_DIR = Path(__file__).parent / "data"
 
 # ─── PAGE CONFIG (must be first Streamlit call) ────────────────
 st.set_page_config(
@@ -38,10 +44,11 @@ def _get_secret(key, section="databricks", fallback=""):
     # 3. Hardcoded fallback
     return fallback
 
-DATABRICKS_HOST   = _get_secret("DATABRICKS_HOST",   fallback="")
-DATABRICKS_PATH   = _get_secret("DATABRICKS_PATH",   fallback="")
-DATABRICKS_TOKEN  = _get_secret("DATABRICKS_TOKEN",  fallback="")
-DATABRICKS_SCHEMA = _get_secret("DATABRICKS_SCHEMA", fallback="")
+# ── COMMENTED OUT: Databricks connection credentials no longer used ──
+# DATABRICKS_HOST   = _get_secret("DATABRICKS_HOST",   fallback="")
+# DATABRICKS_PATH   = _get_secret("DATABRICKS_PATH",   fallback="")
+# DATABRICKS_TOKEN  = _get_secret("DATABRICKS_TOKEN",  fallback="")
+# DATABRICKS_SCHEMA = _get_secret("DATABRICKS_SCHEMA", fallback="")
 
 # Hardcoded users — key is username, value is password key in .env / secrets.toml
 USERS = {
@@ -91,35 +98,42 @@ if not st.session_state.get("authenticated", False):
     st.stop()
 
 # ─── SHARED DATA LOADING ───────────────────────────────────────
-def _query(cursor, sql_str):
-    cursor.execute(sql_str)
-    return pd.DataFrame(cursor.fetchall(), columns=[d[0] for d in cursor.description])
+# ── COMMENTED OUT: Databricks query helper no longer used ──────
+# def _query(cursor, sql_str):
+#     cursor.execute(sql_str)
+#     return pd.DataFrame(cursor.fetchall(), columns=[d[0] for d in cursor.description])
 
 
 @st.cache_data(ttl=60)
 def load_all_data():
-    s = DATABRICKS_SCHEMA
-    with sql.connect(
-        server_hostname=DATABRICKS_HOST,
-        http_path=DATABRICKS_PATH,
-        access_token=DATABRICKS_TOKEN,
-    ) as conn:
-        with conn.cursor() as cur:
-            employees = _query(cur, f"""
-                SELECT employee_id, hire_date, agency_name, job_grade_name,
-                       gender, employment_type
-                FROM {s}.fact_hires
-            """)
-            attrition = _query(cur, f"""
-                SELECT employee_id, exit_date, agency_name, job_grade_name,
-                       exit_reason, is_voluntary, employment_type
-                FROM {s}.fact_attritions
-            """)
-            transfers = _query(cur, f"""
-                SELECT employee_id, transfer_date, from_agency_name,
-                       to_agency_name, job_grade_name
-                FROM {s}.fact_transfer_matrix
-            """)
+    # ── COMMENTED OUT: Databricks connection block ──────────────
+    # s = DATABRICKS_SCHEMA
+    # with sql.connect(
+    #     server_hostname=DATABRICKS_HOST,
+    #     http_path=DATABRICKS_PATH,
+    #     access_token=DATABRICKS_TOKEN,
+    # ) as conn:
+    #     with conn.cursor() as cur:
+    #         employees = _query(cur, f"""
+    #             SELECT employee_id, hire_date, agency_name, job_grade_name,
+    #                    gender, employment_type
+    #             FROM {s}.fact_hires
+    #         """)
+    #         attrition = _query(cur, f"""
+    #             SELECT employee_id, exit_date, agency_name, job_grade_name,
+    #                    exit_reason, is_voluntary, employment_type
+    #             FROM {s}.fact_attritions
+    #         """)
+    #         transfers = _query(cur, f"""
+    #             SELECT employee_id, transfer_date, from_agency_name,
+    #                    to_agency_name, job_grade_name
+    #             FROM {s}.fact_transfer_matrix
+    #         """)
+
+    # ── CSV LOADING: reads from ./data folder ───────────────────
+    employees = pd.read_csv(DATA_DIR / "fact_hires.csv")
+    attrition = pd.read_csv(DATA_DIR / "fact_attritions.csv")
+    transfers = pd.read_csv(DATA_DIR / "fact_transfer_matrix.csv")
 
     # ── Normalise column names to the internal PascalCase contract ────
     # fact_hires columns:          employee_id, hire_date, agency_name,
